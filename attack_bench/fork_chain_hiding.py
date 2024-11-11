@@ -31,7 +31,7 @@ class ForkChainTest(ConfluxTestFramework):
         self.log.info("Honest node generate")
         for _ in range(int(20000/n_generate_batch)):
             batch_generate(self.nodes[0], n_generate_batch, self.log)
-        cnt = self.nodes[0].getblockcount()
+        cnt = self.nodes[0].test_getblockcount()
         self.log.info("Honest node block count: " + str(cnt))
         for b in attack_blocks:
             self.nodes[0].p2p.send_protocol_msg(NewBlock(b))
@@ -39,7 +39,7 @@ class ForkChainTest(ConfluxTestFramework):
         for _ in range(1000):
             batch_generate(self.nodes[0], n_generate_batch, self.log)
             honest_cnt += n_generate_batch
-            cnt = self.nodes[0].getblockcount()
+            cnt = self.nodes[0].test_getblockcount()
             self.log.info("Honest node block count: " + str(cnt) + " " + str(honest_cnt))
             if honest_cnt + n_attack_blocks == cnt:
                 self.log.info("All attack blocks are processed!")
