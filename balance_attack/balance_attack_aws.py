@@ -20,7 +20,7 @@ class Experiment(RemoteSimulate):
 
     def run_test(self):
         # setup monitor to report the current block count periodically
-        cur_block_count = self.nodes[0].test_getblockcount()
+        cur_block_count = self.nodes[0].test_getBlockCount()
         # The monitor will check the block_count of nodes[0]
         monitor_thread = threading.Thread(target=self.monitor, args=(cur_block_count, 100), daemon=True)
         monitor_thread.start()

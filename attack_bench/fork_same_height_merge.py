@@ -40,17 +40,17 @@ class SameHeightTest(ConfluxTestFramework):
         block_gen_thread = BlockGenThread(self.nodes, self.log, interval_base=0.5)
         block_gen_thread.start()
         start_time = time.time()
-        original_cnt = self.nodes[0].test_getblockcount()
+        original_cnt = self.nodes[0].test_getBlockCount()
         for _ in range(100):
             time.sleep(1)
-            cnt = self.nodes[0].test_getblockcount()
+            cnt = self.nodes[0].test_getBlockCount()
             try:
-                cnt1 = self.nodes[1].test_getblockcount()
+                cnt1 = self.nodes[1].test_getBlockCount()
             except Exception as e:
                 self.log.info("Unable to get Node1 block count. Maybe it is busy.")
                 cnt1 = -1
             try:
-                cnt2 = self.nodes[2].test_getblockcount()
+                cnt2 = self.nodes[2].test_getBlockCount()
             except Exception as e:
                 self.log.info("Unable to get Node2 block count. Maybe it is busy.")
                 cnt2 = -1

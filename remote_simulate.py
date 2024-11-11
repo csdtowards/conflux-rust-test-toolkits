@@ -264,7 +264,7 @@ class RemoteSimulate(ConfluxTestFramework):
 
     def run_test(self):
         # setup monitor to report the current block count periodically
-        cur_block_count = self.nodes[0].test_getblockcount()
+        cur_block_count = self.nodes[0].test_getBlockCount()
         # The monitor will check the block_count of nodes[0]
         self.progress = 0
         self.stopped = False
@@ -316,7 +316,7 @@ class RemoteSimulate(ConfluxTestFramework):
 
             for i in range(len(self.nodes)):
                 n = self.nodes[i]
-                block_count_futures.append(executor.submit(n.test_getblockcount))
+                block_count_futures.append(executor.submit(n.test_getBlockCount))
                 best_block_futures.append(executor.submit(n.best_block_hash))
 
             for f in block_count_futures:
@@ -347,7 +347,7 @@ class RemoteSimulate(ConfluxTestFramework):
             time.sleep(self.options.generation_period_ms / 1000 / 2)
 
             # block count
-            block_count = self.nodes[0].test_getblockcount()
+            block_count = self.nodes[0].test_getBlockCount()
             if block_count != pre_block_count:
                 gap = self.progress + cur_block_count - block_count
                 self.log.info("current blocks: %d (gaps: %d)", block_count, gap)
