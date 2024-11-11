@@ -33,7 +33,7 @@ class Experiment(RemoteSimulate):
 
         monitor_thread.join()
 
-        self.log.info("Goodput: {}".format(self.nodes[0].getgoodput()))
+        self.log.info("Goodput: {}".format(self.nodes[0].test_getGoodPut()))
         self.wait_until_nodes_synced()
 
         self.log.info("Best block: {}".format(RpcClient(self.nodes[0]).best_block_hash()))

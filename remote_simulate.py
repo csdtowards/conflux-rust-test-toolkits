@@ -281,7 +281,7 @@ class RemoteSimulate(ConfluxTestFramework):
         monitor_thread.join()
         self.stopped = True
 
-        self.log.info("Goodput: {}".format(self.nodes[0].getgoodput()))
+        self.log.info("Goodput: {}".format(self.nodes[0].test_getGoodPut()))
         self.wait_until_nodes_synced()
 
         ghost_confirmation_time = []
