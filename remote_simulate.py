@@ -87,7 +87,9 @@ class RemoteSimulate(ConfluxTestFramework):
         pos_reference_enable_height = 4294967295,
         cip43_init_end_number = 4294967295,
         sigma_fix_transition_number = 4294967295,
-        public_rpc_apis="cfx,debug,test,pubsub,trace"
+        public_rpc_apis="cfx,debug,test,pubsub,trace",
+
+        cip1559_transition_height = 4294967295
     )
 
     def add_options(self, parser:ArgumentParser):
