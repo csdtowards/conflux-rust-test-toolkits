@@ -141,7 +141,7 @@ class LogAnalyzer:
                 table.add_stat(name, "%d", self.agg.stat_sync_cons_gap(p))
 
         tx_sum = sum(block_txs_list)
-        print("{} txs generated".format(tx_sum))
+        print("{} txs generated, max_time {}, min_time {}".format(tx_sum, max_time, min_time))
         print("Throughput is {}".format(tx_sum / (max_time - min_time)))
         slowest_tx_latency = self.agg.get_largest_min_tx_packed_latency_hash()
         if slowest_tx_latency is not None:
