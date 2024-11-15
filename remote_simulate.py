@@ -90,7 +90,7 @@ class RemoteSimulate(ConfluxTestFramework):
         public_rpc_apis="cfx,debug,test,pubsub,trace",
 
         cip1559_transition_height = 4294967295,
-        target_block_gas_limit = 600_000_000
+        target_block_gas_limit = 6_000_000_000
     )
 
     def add_options(self, parser:ArgumentParser):
