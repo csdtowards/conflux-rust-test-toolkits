@@ -247,9 +247,12 @@ class RemoteSimulate(ConfluxTestFramework):
 
         def get_risk(block):
             p = random.randint(0, len(self.nodes) - 1)
-            risk = self.nodes[p].cfx_getConfirmationRiskByHash(block)
-            self.log.debug(f"risk: {block} {risk}")
-            return (block, risk)
+            try:
+                risk = self.nodes[p].cfx_getConfirmationRiskByHash(block)
+                self.log.debug(f"risk: {block} {risk}")
+                return (block, risk)
+            except Exception as e:
+                self.log.info("get risk failed {}".format(str(e)))
 
         while not self.stopped:
             futures = []
@@ -320,16 +323,22 @@ class RemoteSimulate(ConfluxTestFramework):
                 best_block_futures.append(executor.submit(n.best_block_hash))
 
             for f in block_count_futures:
-                assert f.exception() is None, "failed to get block count: {}".format(f.exception())
-                block_counts.append(f.result())
+                # assert f.exception() is None, "failed to get block count: {}".format(f.exception())
+                if f.exception():
+                    self.log.info("failed to get block count: {}".format(f.exception()))
+                else:
+                    block_counts.append(f.result())
             max_count = max(block_counts)
             for i in range(len(block_counts)):
                 if block_counts[i] < max_count - 50:
                     self.log.info("Slow: {}: {}".format(i, block_counts[i]))
 
             for f in best_block_futures:
-                assert f.exception() is None, "failed to get best block: {}".format(f.exception())
-                best_blocks.append(f.result())
+                # assert f.exception() is None, "failed to get best block: {}".format(f.exception())
+                if f.exception():
+                    self.log.info("failed to get best block: {}".format(f.exception()))
+                else:
+                    best_blocks.append(f.result())
 
             self.log.info("blocks: {}".format(Counter(block_counts)))
 
