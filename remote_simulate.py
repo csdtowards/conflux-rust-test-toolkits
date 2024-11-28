@@ -21,7 +21,7 @@ import platform
 CONFIRMATION_THRESHOLD = 0.1**6 * 2**256
 
 def execute(cmd, retry, cmd_description):
-    while True:
+    while retry > 0:
         ret = os.system(cmd)
 
         if platform.system().lower() == "linux":
@@ -31,7 +31,7 @@ def execute(cmd, retry, cmd_description):
             break
 
         print("Failed to {}, return code = {}, retry = {} ...".format(cmd_description, ret, retry))
-        assert retry > 0
+        # assert retry > 0
         retry -= 1
         time.sleep(1)
 
