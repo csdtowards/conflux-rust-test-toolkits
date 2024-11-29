@@ -20,7 +20,7 @@ class Experiment(RemoteSimulate):
 
     def run_test(self):
         # setup monitor to report the current block count periodically
-        cur_block_count = self.nodes[0].getblockcount()
+        cur_block_count = self.nodes[0].test_getBlockCount()
         # The monitor will check the block_count of nodes[0]
         monitor_thread = threading.Thread(target=self.monitor, args=(cur_block_count, 100), daemon=True)
         monitor_thread.start()
@@ -33,7 +33,7 @@ class Experiment(RemoteSimulate):
 
         monitor_thread.join()
 
-        self.log.info("Goodput: {}".format(self.nodes[0].getgoodput()))
+        self.log.info("Goodput: {}".format(self.nodes[0].test_getGoodPut()))
         self.wait_until_nodes_synced()
 
         self.log.info("Best block: {}".format(RpcClient(self.nodes[0]).best_block_hash()))
