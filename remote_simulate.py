@@ -328,7 +328,7 @@ class RemoteSimulate(ConfluxTestFramework):
 
             for i in range(len(self.nodes)):
                 n = self.nodes[i]
-                block_count_futures.append(executor.submit(n.getblockcount))
+                block_count_futures.append(executor.submit(n.test_getBlockCount))
                 best_block_futures.append(executor.submit(n.best_block_hash))
 
             for f in block_count_futures:
