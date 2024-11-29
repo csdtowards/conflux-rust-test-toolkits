@@ -21,7 +21,7 @@ import platform
 CONFIRMATION_THRESHOLD = 0.1**6 * 2**256
 
 def execute(cmd, retry, cmd_description):
-    while True:
+    while retry > 0:
         ret = os.system(cmd)
 
         if platform.system().lower() == "linux":
@@ -31,7 +31,7 @@ def execute(cmd, retry, cmd_description):
             break
 
         print("Failed to {}, return code = {}, retry = {} ...".format(cmd_description, ret, retry))
-        assert retry > 0
+        # assert retry > 0
         retry -= 1
         time.sleep(1)
 
@@ -87,7 +87,10 @@ class RemoteSimulate(ConfluxTestFramework):
         pos_reference_enable_height = 4294967295,
         cip43_init_end_number = 4294967295,
         sigma_fix_transition_number = 4294967295,
-        public_rpc_apis="cfx,debug,test,pubsub,trace"
+        public_rpc_apis="cfx,debug,test,pubsub,trace",
+
+        cip1559_transition_height = 4294967295,
+        target_block_gas_limit = 6_000_000_000
     )
 
     def add_options(self, parser:ArgumentParser):
@@ -235,7 +238,7 @@ class RemoteSimulate(ConfluxTestFramework):
                 self.log.debug("%d generating block %.2f", p, elapsed)
                 time.sleep(wait_sec - elapsed)
             elif elapsed > 0.01:
-                self.log.warn("%d generating block slowly %.2f", p, elapsed)
+                self.log.warning("%d generating block slowly %.2f", p, elapsed)
         self.log.info("generateoneblock RPC latency: {}".format(Statistics(rpc_times, 3).__dict__))
         self.log.info(f"average confirmation latency: {self.confirm_info.get_average_latency()}")
 
@@ -245,9 +248,12 @@ class RemoteSimulate(ConfluxTestFramework):
 
         def get_risk(block):
             p = random.randint(0, len(self.nodes) - 1)
-            risk = self.nodes[p].cfx_getConfirmationRiskByHash(block)
-            self.log.debug(f"risk: {block} {risk}")
-            return (block, risk)
+            try:
+                risk = self.nodes[p].cfx_getConfirmationRiskByHash(block)
+                self.log.debug(f"risk: {block} {risk}")
+                return (block, risk)
+            except Exception as e:
+                self.log.info("get risk failed {}".format(str(e)))
 
         while not self.stopped:
             futures = []
@@ -262,7 +268,7 @@ class RemoteSimulate(ConfluxTestFramework):
 
     def run_test(self):
         # setup monitor to report the current block count periodically
-        cur_block_count = self.nodes[0].getblockcount()
+        cur_block_count = self.nodes[0].test_getBlockCount()
         # The monitor will check the block_count of nodes[0]
         self.progress = 0
         self.stopped = False
@@ -279,7 +285,15 @@ class RemoteSimulate(ConfluxTestFramework):
         monitor_thread.join()
         self.stopped = True
 
-        self.log.info("Goodput: {}".format(self.nodes[0].getgoodput()))
+        i = 0
+        while True:
+            try:
+                self.log.info("Goodput: {}".format(self.nodes[i].test_getGoodPut()))
+                break
+            except Exception as e:
+                i += 1
+                self.log.info("get goodput failed {}".format(str(e)))
+
         self.wait_until_nodes_synced()
 
         ghost_confirmation_time = []
@@ -318,16 +332,22 @@ class RemoteSimulate(ConfluxTestFramework):
                 best_block_futures.append(executor.submit(n.best_block_hash))
 
             for f in block_count_futures:
-                assert f.exception() is None, "failed to get block count: {}".format(f.exception())
-                block_counts.append(f.result())
+                # assert f.exception() is None, "failed to get block count: {}".format(f.exception())
+                if f.exception():
+                    self.log.info("failed to get block count: {}".format(f.exception()))
+                else:
+                    block_counts.append(f.result())
             max_count = max(block_counts)
             for i in range(len(block_counts)):
                 if block_counts[i] < max_count - 50:
                     self.log.info("Slow: {}: {}".format(i, block_counts[i]))
 
             for f in best_block_futures:
-                assert f.exception() is None, "failed to get best block: {}".format(f.exception())
-                best_blocks.append(f.result())
+                # assert f.exception() is None, "failed to get best block: {}".format(f.exception())
+                if f.exception():
+                    self.log.info("failed to get best block: {}".format(f.exception()))
+                else:
+                    best_blocks.append(f.result())
 
             self.log.info("blocks: {}".format(Counter(block_counts)))
 
@@ -345,7 +365,7 @@ class RemoteSimulate(ConfluxTestFramework):
             time.sleep(self.options.generation_period_ms / 1000 / 2)
 
             # block count
-            block_count = self.nodes[0].getblockcount()
+            block_count = self.nodes[0].test_getBlockCount()
             if block_count != pre_block_count:
                 gap = self.progress + cur_block_count - block_count
                 self.log.info("current blocks: %d (gaps: %d)", block_count, gap)

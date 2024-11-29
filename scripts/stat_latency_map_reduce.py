@@ -269,6 +269,9 @@ class Statistics:
             self.__dict__[p.name] = value
 
     def get(self, p:Percentile, data_format:str=None):
+        if p.name not in self.__dict__:
+            return 0
+        
         result = self.__dict__[p.name]
 
         if data_format is not None:
