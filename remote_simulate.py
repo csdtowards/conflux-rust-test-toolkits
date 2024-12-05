@@ -35,8 +35,8 @@ def execute(cmd, retry, cmd_description):
         retry -= 1
         time.sleep(1)
 
-def pssh(ips_file:str, remote_cmd:str, retry=3, cmd_description=""):
-    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 400 "{remote_cmd}" > /dev/null 2>&1'
+def pssh(ips_file:str, remote_cmd:str, retry=3, cmd_description="", output=""):
+    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 400 "{remote_cmd}" {output}'
     execute(cmd, retry, cmd_description)
 
 def pscp(ips_file:str, local:str, remote:str, retry=3, cmd_description=""):
@@ -44,7 +44,7 @@ def pscp(ips_file:str, local:str, remote:str, retry=3, cmd_description=""):
     execute(cmd, retry, cmd_description)
 
 def kill_remote_conflux(ips_file:str):
-    pssh(ips_file, "killall conflux || echo already killed", 3, "kill remote conflux")
+    pssh(ips_file, "killall conflux || echo already killed", 3, "kill remote conflux", "> /dev/null 2>&1")
 
 """
 Setup and run conflux nodes on multiple vms with a few nodes on each vm.
@@ -159,7 +159,7 @@ class RemoteSimulate(ConfluxTestFramework):
             self.options.bandwidth, str(self.options.enable_flamegraph).lower()
         )
         cmd = "{}; {} && {} && {}".format(cmd_kill_conflux, cmd_cleanup, cmd_setup, cmd_startup)
-        pssh(self.options.ips_file, cmd, 3, "setup and run conflux on remote nodes")
+        pssh(self.options.ips_file, cmd, 3, "setup and run conflux on remote nodes", "> runconflux 2>&1")
 
     def setup_network(self):
         self.setup_remote_conflux()
