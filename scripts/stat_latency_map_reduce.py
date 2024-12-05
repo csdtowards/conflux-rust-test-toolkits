@@ -5,6 +5,7 @@ sys.path.insert(1, os.path.join(sys.path[0], '../..'))
 import dateutil.parser
 import json
 import enum
+import re
 from concurrent.futures import ThreadPoolExecutor
 
 def parse_value(log_line:str, prefix:str, suffix:str):
@@ -22,7 +23,15 @@ class BlockLatencyType(enum.Enum):
     Sync = 1
     Cons = 2
 
-
+class BlockEventRecordType(enum.Enum):
+    HeaderReady = 0
+    BodyReady = 1
+    SyncGraph = 2
+    ConsensusGraphStart = 3
+    ConsensusGraphReady = 4
+    ComputeEpoch = 5
+    NotifyTxPool = 6
+    TxPoolUpdated = 7
 
 
 
@@ -112,6 +121,42 @@ class Transaction:
     def latency_count(self):
         return len(self.received_timestamps)
 
+class BlockEventRecord:
+    def __init__(self, records: dict):
+        self.hash = records["hash"]
+
+        BASE = 1_000_000
+
+        self.records = dict()
+        self.records[BlockEventRecordType.HeaderReady] = records["header_ready"] / BASE
+        self.records[BlockEventRecordType.BodyReady] = (records["body_ready"] - records["header_ready"]) / BASE
+        self.records[BlockEventRecordType.SyncGraph] = (records["sync_graph"] - records["body_ready"]) / BASE
+        self.records[BlockEventRecordType.ConsensusGraphStart] = (records["consensys_graph_insert"] - records["sync_graph"]) / BASE
+        self.records[BlockEventRecordType.ConsensusGraphReady] = (records["consensys_graph_ready"] - records["consensys_graph_insert"]) / BASE
+        self.records[BlockEventRecordType.ComputeEpoch] = (records["compute_epoch"] - records["consensys_graph_ready"]) / BASE
+        self.records[BlockEventRecordType.NotifyTxPool] = (records["notify_tx_pool"] - records["compute_epoch"]) / BASE
+        self.records[BlockEventRecordType.TxPoolUpdated] = (records["tx_pool_updated"] - records["notify_tx_pool"]) / BASE
+
+    @staticmethod
+    def parse(text):
+        pattern = r"Block events record ([a-z\s]*)\. (.*)"
+        match = re.search(pattern, text)
+
+        if match:
+            result = match.group(2).strip()  # 获取匹配的第一组（即'.'后面的内容）
+        else:
+            return None
+        
+        d = dict()
+        for item in result.split(", "):
+            (key, value) = tuple(item.split(": "))
+            if key not in ["hash", "start_timestamp"]:
+                d[key] = int(value)
+            else:
+                d[key] = value
+            
+        return BlockEventRecord(d)
+                
 class Block:
     def __init__(self, hash:str, parent_hash:str, timestamp:float, height:int, referees:list):
         self.hash = hash
@@ -126,6 +171,8 @@ class Block:
         # [latency_type, latency]
         self.latencies = {}
         for t in BlockLatencyType:
+            self.latencies[t.name] = []
+        for t in BlockEventRecordType:
             self.latencies[t.name] = []
 
     @staticmethod
@@ -169,6 +216,18 @@ class Block:
 
         for t in BlockLatencyType:
             self.latencies[t.name].extend(another.latencies[t.name])
+
+        for t in BlockEventRecordType:
+            self.latencies[t.name].extend(another.latencies[t.name])
+
+    def set_block_event_record(self, record: BlockEventRecord):
+        if self.hash != record.hash:
+            return
+        
+        for t in BlockEventRecordType:
+            if t in record.records:
+                self.latencies[t.name].append(record.records[t])
+
 
     def latency_count(self, t:BlockLatencyType):
         return len(self.latencies[t.name])
@@ -253,6 +312,11 @@ class NodeLogMapper:
         if "insert new block into consensus" in line:
             block = Block.receive(line, BlockLatencyType.Cons)
             Block.add_or_merge(self.blocks, block)
+
+        if "Block events record complete" in line:
+            records = BlockEventRecord.parse(line)
+            if records is not None and self.blocks.get(records.hash) is not None:
+                self.blocks[records.hash].set_block_event_record(records)
 
         if "Statistics" in line:
             sync_len = int(parse_value(line, "SyncGraphStatistics { inserted_block_count: ", ","))
@@ -365,6 +429,8 @@ class LogAggregator:
         self.block_latency_stats = {}
         for t in BlockLatencyType:
             self.block_latency_stats[t.name] = {}
+        for t in BlockEventRecordType:
+            self.block_latency_stats[t.name] = {}
         self.tx_latency_stats = {}
         self.tx_packed_to_block_latency = {}
         self.min_tx_packed_to_block_latency = []
@@ -426,6 +492,8 @@ class LogAggregator:
     def generate_latency_stat(self):
         for b in self.blocks.values():
             for t in BlockLatencyType:
+                self.block_latency_stats[t.name][b.hash] = Statistics(b.get_latencies(t))
+            for t in BlockEventRecordType:
                 self.block_latency_stats[t.name][b.hash] = Statistics(b.get_latencies(t))
 
         num_nodes = len(self.sync_cons_gap_stats)

@@ -7,7 +7,7 @@ import dateutil.parser
 import time
 from concurrent.futures import ThreadPoolExecutor
 from prettytable import PrettyTable
-from stat_latency_map_reduce import BlockLatencyType, Percentile, Statistics, HostLogReducer, LogAggregator
+from stat_latency_map_reduce import BlockLatencyType, BlockEventRecordType, Percentile, Statistics, HostLogReducer, LogAggregator
 
 class Table:
     def __init__(self, header:list):
@@ -78,6 +78,11 @@ class LogAnalyzer:
         for t in BlockLatencyType:
             for p in Percentile:
                 name = "block broadcast latency ({}/{})".format(t.name, p.name)
+                table.add_stat(name, "%.2f", self.agg.stat_block_latency(t, p))
+
+        for t in BlockEventRecordType:
+            for p in Percentile:
+                name = "block event elapsed ({}/{})".format(t.name, p.name)
                 table.add_stat(name, "%.2f", self.agg.stat_block_latency(t, p))
 
         if len(self.agg.tx_latency_stats) != 0:
