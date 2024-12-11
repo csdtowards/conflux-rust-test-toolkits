@@ -35,7 +35,7 @@ def execute(cmd, retry, cmd_description):
         retry -= 1
         time.sleep(1)
 
-def pssh(ips_file:str, remote_cmd:str, retry=3, cmd_description="", output=""):
+def pssh(ips_file:str, remote_cmd:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
     cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 400 "{remote_cmd}" {output}'
     execute(cmd, retry, cmd_description)
 
@@ -286,7 +286,7 @@ class RemoteSimulate(ConfluxTestFramework):
         self.stopped = True
 
         i = 0
-        while True:
+        while i < len(self.nodes):
             try:
                 self.log.info("Goodput: {}".format(self.nodes[i].test_getGoodPut()))
                 break
