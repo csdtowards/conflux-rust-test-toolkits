@@ -32,6 +32,7 @@ pip3 install python-dateutil
 
 sudo apt install -y linux-tools-common
 sudo apt install -y linux-tools-`uname -r`
+sudo apt install -y cgroup-tools
 cargo install flamegraph
 echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
 
