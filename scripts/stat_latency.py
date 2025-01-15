@@ -101,8 +101,8 @@ class LogAnalyzer:
             table.add_stat("by_block_ratio", "%.2f", self.agg.stat_tx_ratio())
 
             #colomn: shows the time a transaction from receiving to packing for every node, be aware of the transactions can be packed multiple times.
-            #Therefore there may be mutiple values for the same transaction.
-            table.add_stat("Tx wait to be packed elasped time", "%.2f", self.agg.stat_tx_wait_to_be_packed())
+            #Therefore there may be multiple values for the same transaction.
+            table.add_stat("Tx wait to be packed elapsed time", "%.2f", self.agg.stat_tx_wait_to_be_packed())
 
         block_txs_list = []
         block_size_list = []
