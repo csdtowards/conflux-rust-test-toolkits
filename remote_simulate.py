@@ -21,7 +21,7 @@ import platform
 CONFIRMATION_THRESHOLD = 0.1**6 * 2**256
 
 def execute(cmd, retry, cmd_description):
-    while retry > 0:
+    while True:
         ret = os.system(cmd)
 
         if platform.system().lower() == "linux":
@@ -31,7 +31,7 @@ def execute(cmd, retry, cmd_description):
             break
 
         print("Failed to {}, return code = {}, retry = {} ...".format(cmd_description, ret, retry))
-        # assert retry > 0
+        assert retry > 0
         retry -= 1
         time.sleep(1)
 
@@ -87,10 +87,6 @@ class RemoteSimulate(ConfluxTestFramework):
         pos_reference_enable_height = 4294967295,
         cip43_init_end_number = 4294967295,
         sigma_fix_transition_number = 4294967295,
-        public_rpc_apis="cfx,debug,test,pubsub,trace",
-
-        cip1559_transition_height = 4294967295,
-        target_block_gas_limit = 6_000_000_000
     )
 
     def add_options(self, parser:ArgumentParser):
