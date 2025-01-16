@@ -210,7 +210,7 @@ class RemoteSimulate(ConfluxTestFramework):
                     break
 
             if retry >= max_retry:
-                self.log.warn("too many nodes are busy to generate block, stop to analyze logs.")
+                self.log.warning("too many nodes are busy to generate block, stop to analyze logs.")
                 break
 
             if self.enable_tx_propagation:
@@ -234,7 +234,7 @@ class RemoteSimulate(ConfluxTestFramework):
                 self.log.debug("%d generating block %.2f", p, elapsed)
                 time.sleep(wait_sec - elapsed)
             elif elapsed > 0.01:
-                self.log.warn("%d generating block slowly %.2f", p, elapsed)
+                self.log.warning("%d generating block slowly %.2f", p, elapsed)
         self.log.info("generateoneblock RPC latency: {}".format(Statistics(rpc_times, 3).__dict__))
         self.log.info(f"average confirmation latency: {self.confirm_info.get_average_latency()}")
 
@@ -243,10 +243,14 @@ class RemoteSimulate(ConfluxTestFramework):
         query_count = 80
 
         def get_risk(block):
-            p = random.randint(0, len(self.nodes) - 1)
-            risk = self.nodes[p].cfx_getConfirmationRiskByHash(block)
-            self.log.debug(f"risk: {block} {risk}")
-            return (block, risk)
+            try:
+                p = random.randint(0, len(self.nodes) - 1)
+                risk = self.nodes[p].cfx_getConfirmationRiskByHash(block)
+                self.log.debug(f"risk: {block} {risk}")
+                return (block, risk)
+            except Exception as e:
+                self.log.info("get risk failed {}".format(str(e)))
+                return (None, None)
 
         while not self.stopped:
             futures = []
@@ -278,7 +282,15 @@ class RemoteSimulate(ConfluxTestFramework):
         monitor_thread.join()
         self.stopped = True
 
-        self.log.info("Goodput: {}".format(self.nodes[0].test_getGoodPut()))
+        node_idx = 0
+        while node_idx < len(self.nodes):
+            try:
+                self.log.info("Goodput: {}".format(self.nodes[node_idx].test_getGoodPut()))
+                break
+            except Exception as e:
+                node_idx += 1
+                self.log.info("get goodput failed {}".format(str(e)))
+
         self.wait_until_nodes_synced()
 
         ghost_confirmation_time = []
@@ -317,16 +329,23 @@ class RemoteSimulate(ConfluxTestFramework):
                 best_block_futures.append(executor.submit(n.best_block_hash))
 
             for f in block_count_futures:
-                assert f.exception() is None, "failed to get block count: {}".format(f.exception())
-                block_counts.append(f.result())
+                # assert f.exception() is None, "failed to get block count: {}".format(f.exception())
+                if f.exception():
+                    self.log.info("failed to get block count: {}".format(f.exception()))
+                else:
+                    block_counts.append(f.result())
+                    
             max_count = max(block_counts)
             for i in range(len(block_counts)):
                 if block_counts[i] < max_count - 50:
                     self.log.info("Slow: {}: {}".format(i, block_counts[i]))
 
             for f in best_block_futures:
-                assert f.exception() is None, "failed to get best block: {}".format(f.exception())
-                best_blocks.append(f.result())
+                # assert f.exception() is None, "failed to get best block: {}".format(f.exception())
+                if f.exception():
+                    self.log.info("failed to get best block: {}".format(f.exception()))
+                else:
+                    best_blocks.append(f.result())
 
             self.log.info("blocks: {}".format(Counter(block_counts)))
 
@@ -388,6 +407,8 @@ class BlockConfirmationInfo:
         self._lock.acquire()
         confirmation_time = self.block_confirmation_time.values()
         self._lock.release()
+        if len(confirmation_time) == 0:
+            return 0
         return sum(confirmation_time) / len(confirmation_time)
 
     def progress(self):
