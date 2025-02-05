@@ -65,10 +65,11 @@ class LogAnalyzer:
         self.csv_output = csv_output
 
     def analyze(self):
+        print("start analyze", flush=True)
         self.agg = LogAggregator.load(self.log_dir)
 
-        print("{} nodes in total".format(len(self.agg.sync_cons_gap_stats)))
-        print("{} blocks generated".format(len(self.agg.blocks)))
+        print("{} nodes in total".format(len(self.agg.sync_cons_gap_stats)), flush=True)
+        print("{} blocks generated".format(len(self.agg.blocks)), flush=True)
 
         self.agg.validate()
         self.agg.generate_latency_stat()

@@ -6,7 +6,7 @@ import dateutil.parser
 import json
 import enum
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 
 def parse_value(log_line:str, prefix:str, suffix:str):
@@ -521,6 +521,13 @@ class HostLogReducer:
         reducer.reduce()
         return reducer
 
+class MergeData:
+    def __init__(self, blocks, txs, sync_cons_gap_stats, by_block_ratio, tx_wait_to_be_packed_time):
+        self.blocks = blocks
+        self.txs = txs
+        self.sync_cons_gap_stats = sync_cons_gap_stats
+        self.by_block_ratio = by_block_ratio
+        self.tx_wait_to_be_packed_time = tx_wait_to_be_packed_time
 
 class LogAggregator:
     def __init__(self):
@@ -562,6 +569,48 @@ class LogAggregator:
                 self.tx_wait_to_be_packed_time.append(tx.packed_timestamps[0] - min(tx.received_timestamps))
 
 
+    def add_host_merge(host_log1: MergeData, host_log2: MergeData):
+        sync_cons_gap_stats = []
+        sync_cons_gap_stats.extend(host_log1.sync_cons_gap_stats)
+        sync_cons_gap_stats.extend(host_log2.sync_cons_gap_stats)
+        
+        blocks = {}
+        txs = {}
+        
+        for b in host_log1.blocks.values():
+            Block.add_or_merge(blocks, b)
+            
+        for b in host_log2.blocks.values():
+            Block.add_or_merge(blocks, b)
+            
+        for tx in host_log1.txs.values():
+            Transaction.add_or_merge(txs, tx)
+
+        for tx in host_log2.txs.values():
+            Transaction.add_or_merge(txs, tx)
+            
+        # following data only work for one node per host
+        host_by_block_ratio = []
+        host_by_block_ratio.extend(host_log1.by_block_ratio)
+        host_by_block_ratio.extend(host_log2.by_block_ratio)
+
+        tx_wait_to_be_packed_time = []
+        if host_log1.tx_wait_to_be_packed_time is not None:
+            tx_wait_to_be_packed_time.extend(host_log1.tx_wait_to_be_packed_time)
+        else:
+            for tx in host_log1.txs.values():
+                if tx.packed_timestamps[0] is not None:
+                    tx_wait_to_be_packed_time.append(tx.packed_timestamps[0] - min(tx.received_timestamps))
+
+        if host_log2.tx_wait_to_be_packed_time is not None:
+            tx_wait_to_be_packed_time.extend(host_log2.tx_wait_to_be_packed_time)
+        else:
+            for tx in host_log2.txs.values():
+                if tx.packed_timestamps[0] is not None:
+                    tx_wait_to_be_packed_time.append(tx.packed_timestamps[0] - min(tx.received_timestamps))
+
+        return MergeData(blocks, txs, sync_cons_gap_stats, host_by_block_ratio, tx_wait_to_be_packed_time)
+    
     def validate(self):
         num_nodes = len(self.sync_cons_gap_stats)
 
@@ -678,17 +727,67 @@ class LogAggregator:
     @staticmethod
     def load(logs_dir):
         agg = LogAggregator()
-        executor = ThreadPoolExecutor(max_workers=8)
+        executor = ProcessPoolExecutor(max_workers=100)
 
         futures = []
+        i = 0
+        print(f"begin load files", flush=True)
         for (path, _, files) in os.walk(logs_dir):
             for f in files:
                 if f == "blocks.log":
                     log_file = os.path.join(path, f)
                     futures.append(executor.submit(HostLogReducer.loadf, log_file))
 
-        for f in futures:
-            agg.add_host(f.result())
+                    i += 1
+                    if i % 100 == 0:
+                        print(f"load progress {i}", flush=True)
+
+
+        res = []
+        i = 0
+        for f in as_completed(futures):
+            r = f.result()
+            res.append(MergeData(r.blocks,r.txs, r.sync_cons_gap_stats, r.by_block_ratio, None))
+            
+            i += 1
+            if i % 100 == 0:
+                print(f"process file progress {i}", flush=True)
+        
+        while len(res) > 1:
+            print(f"res len {len(res)}", flush=True)
+            futures = []
+            i = 0
+            while i < len(res):
+                if i +  1 < len(res):
+                    futures.append(executor.submit(LogAggregator.add_host_merge, res[i], res[i+1]))
+                else:
+                    futures.append(executor.submit(LogAggregator.add_host_merge, res[i], MergeData({}, {}, [], [], [])))
+
+                if i % 100 == 0:
+                    print(f"submit merge thread progress {i}", flush=True)
+                
+                i += 2
+
+            res = []
+            i = 0
+            for f in as_completed(futures):
+                res.append(f.result())
+                if i % 100 == 0:
+                    print(f"merge progress {i}", flush=True)
+                
+                i += 2
+
+        agg.sync_cons_gap_stats = res[0].sync_cons_gap_stats
+        agg.blocks = res[0].blocks
+        agg.txs = res[0].txs
+        agg.host_by_block_ratio = res[0].by_block_ratio
+        agg.tx_wait_to_be_packed_time = res[0].tx_wait_to_be_packed_time
+        # i = 0
+        # for f in as_completed(futures):
+        #     agg.add_host(f.result())
+        #     i += 1
+        #     if i % 200 == 0:
+        #         print(i)
 
         agg.validate()
         agg.generate_latency_stat()

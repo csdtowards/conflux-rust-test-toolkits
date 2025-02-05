@@ -51,5 +51,8 @@ do
         eval $cli
     fi
 done
+
 #pids=`ps -ef|grep kworker|awk '{print $2'}`
 #cgexec -g net_cls:limit1 
+
+exit 0

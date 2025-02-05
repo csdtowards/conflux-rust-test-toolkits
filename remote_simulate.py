@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os
+import sys, os, json, re
 sys.path.insert(1, os.path.dirname(sys.path[0]))
 
 from argparse import ArgumentParser, SUPPRESS
@@ -28,23 +28,41 @@ def execute(cmd, retry, cmd_description):
             ret = os.waitstatus_to_exitcode(ret)
 
         if ret == 0:
-            break
+            return 0
 
         print("Failed to {}, return code = {}, retry = {} ...".format(cmd_description, ret, retry))
         # assert retry > 0
         retry -= 1
+        if retry == 0:
+            return ret
         time.sleep(1)
 
 def pssh(ips_file:str, remote_cmd:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
-    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 400 "{remote_cmd}" {output}'
-    execute(cmd, retry, cmd_description)
+    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 200 "{remote_cmd}" {output}'
+    print(cmd)
+    return execute(cmd, retry, cmd_description)
 
-def pscp(ips_file:str, local:str, remote:str, retry=3, cmd_description=""):
-    cmd = f'parallel-scp -O "StrictHostKeyChecking no" -h {ips_file} -p 400 {local} {remote} > /dev/null 2>&1'
-    execute(cmd, retry, cmd_description)
+def pssh_ips(ips:str, remote_cmd:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
+    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -H "{ips}" -p 200 "{remote_cmd}" {output}'
+    print(f"{cmd}")
+    return execute(cmd, retry, cmd_description)
+    
+def pscp(ips_file:str, local:str, remote:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
+    cmd = f'parallel-scp -O "StrictHostKeyChecking no" -h {ips_file} -p 200 {local} {remote} {output}'
+    return execute(cmd, retry, cmd_description)
 
 def kill_remote_conflux(ips_file:str):
-    pssh(ips_file, "killall conflux || echo already killed", 3, "kill remote conflux", "> /dev/null 2>&1")
+    ret = pssh(ips_file, "killall conflux || echo already killed", 3, "kill remote conflux", "> killConflux 2>&1")
+    if ret > 0:
+        failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
+        with open("killConflux", "r") as f:
+            content = f.read()
+            failure_ips = set(re.findall(failure_pattern, content))
+            print(f"Failure IPs: {failure_ips}")
+            for ip in failure_ips:
+                cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "killall conflux || echo already killed" > /dev/null 2>&1'
+                if execute(cmd, 5, "kill remote conflux") > 0:
+                    print(f"Failed to kill conflux on {ip}")
 
 """
 Setup and run conflux nodes on multiple vms with a few nodes on each vm.
@@ -82,7 +100,7 @@ class RemoteSimulate(ConfluxTestFramework):
         txgen_batch_size = 10,
         tx_pool_size = conflux.config.default_conflux_conf["tx_pool_size"],
         max_block_size_in_bytes = conflux.config.default_config["MAX_BLOCK_SIZE_IN_BYTES"],
-        execution_prefetch_threads = 8,
+        execution_prefetch_threads = 4,
         # pos
         hydra_transition_number = 4294967295,
         hydra_transition_height = 4294967295,
@@ -112,6 +130,13 @@ class RemoteSimulate(ConfluxTestFramework):
                 line = line[:-1]
                 self.ips.append(line)
 
+        self.new_ips = {}
+        if os.path.isfile("instances.json"):
+            with open("instances.json", "r") as f:
+                data = json.load(f)
+                for k, v in data.items():
+                    self.new_ips[int(k)] = v
+
         self.conf_parameters = OptionHelper.conflux_options_to_config(
             vars(self.options), RemoteSimulate.PASS_TO_CONFLUX_OPTIONS)
 
@@ -139,7 +164,8 @@ class RemoteSimulate(ConfluxTestFramework):
         self.conf_parameters["enable_optimistic_execution"] = "false"
 
     def stop_nodes(self):
-        kill_remote_conflux(self.options.ips_file)
+        # kill_remote_conflux(self.options.ips_file)
+        pass
 
     def setup_remote_conflux(self):
         # tar the config file for all nodes
@@ -163,12 +189,72 @@ class RemoteSimulate(ConfluxTestFramework):
         cmd = "{}; {} && {} && {}".format(cmd_kill_conflux, cmd_cleanup, cmd_setup, cmd_startup)
         pssh(self.options.ips_file, cmd, 3, "setup and run conflux on remote nodes", "> runconflux 2>&1")
 
-    def setup_network(self):
-        self.setup_remote_conflux()
+    def setup_remote_conflux_with_ips(self):
+        # tar the config file for all nodes
+        zipped_conf_file = os.path.join(self.options.tmpdir, "conflux_conf.tgz")
+        with tarfile.open(zipped_conf_file, "w:gz") as tar_file:
+            tar_file.add(self.options.tmpdir, arcname=os.path.basename(self.options.tmpdir))
 
-        # add remote nodes and start all
-        for ip in self.ips:
-            self.add_remote_nodes(self.options.nodes_per_host, user="ubuntu", ip=ip, no_pssh=False)
+        self.log.info("copy conflux configuration files to remote nodes ...")
+        ret = pscp(self.options.ips_file, zipped_conf_file, "~", 3, "copy conflux configuration files to remote nodes", "> copyconfluxcfg 2>&1")
+        if ret > 0:
+            failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
+            with open("copyconfluxcfg", "r") as f:
+                content = f.read()
+                failure_ips = set(re.findall(failure_pattern, content))
+                print(f"Failure IPs: {failure_ips}")
+                for ip in failure_ips:
+                    cmd = f'scp -o "StrictHostKeyChecking no" {zipped_conf_file} {ip}:~ > /dev/null 2>&1'
+                    if execute(cmd, 5, "copy conflux configuration files to remote nodes") > 0:
+                        print(f"Failed to copy conflux configuration files to remote nodes on {ip}")
+                    
+        os.remove(zipped_conf_file)
+
+        # setup on remote nodes and start conflux
+        self.log.info("setup conflux runtime environment and start conflux on remote nodes ...")
+        cmd_kill_conflux = "killall -9 conflux || echo already killed"
+        cmd_cleanup = "rm -rf /tmp/conflux_test_*"
+        cmd_setup = "tar zxf conflux_conf.tgz -C /tmp"
+
+
+        for nodes_per_host, ips in self.new_ips.items():
+            print(f"ip len {len(ips)}, {ips[0]}")
+            cmd_startup = "./remote_start_conflux.sh {} {} {} {} {}&> start_conflux.out".format(
+                self.options.tmpdir, p2p_port(0), nodes_per_host,
+                self.options.bandwidth, str(self.options.enable_flamegraph).lower()
+            )
+            cmd = "{}; {} && {} && {}".format(cmd_kill_conflux, cmd_cleanup, cmd_setup, cmd_startup)
+            with open("ips_tmp", "w") as file:
+                for item in ips:
+                    file.write(f"{item}\n")
+        
+            ret = pssh("ips_tmp", cmd, 3, "setup and run conflux on remote nodes", "> remotestartconflux 2>&1")
+            if ret > 0:
+                failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
+                with open("remotestartconflux", "r") as f:
+                    content = f.read()
+                    failure_ips = set(re.findall(failure_pattern, content))
+                    print(f"Failure IPs: {failure_ips}")
+                    for ip in failure_ips:
+                        cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "{cmd}" > /dev/null 2>&1'
+                        if execute(cmd, 5, "setup and run conflux on remote nodes") > 0:
+                            print(f"Failed to setup and run conflux on remote nodes on {ip}")
+            
+            # add remote nodes and start all
+            for ip in ips:
+                self.add_remote_nodes(nodes_per_host, user="ubuntu", ip=ip, no_pssh=False)
+
+        
+    def setup_network(self):
+        if self.new_ips is None or len(self.new_ips) == 0:
+            self.setup_remote_conflux()
+
+            # add remote nodes and start all
+            for ip in self.ips:
+                self.add_remote_nodes(self.options.nodes_per_host, user="ubuntu", ip=ip, no_pssh=False)
+        else:
+            self.setup_remote_conflux_with_ips()
+            
         for i in range(len(self.nodes)):
             self.log.info("Node[{}]: ip={}, p2p_port={}, rpc_port={}".format(
                 i, self.nodes[i].ip, self.nodes[i].port, self.nodes[i].rpcport))
@@ -176,10 +262,33 @@ class RemoteSimulate(ConfluxTestFramework):
         self.start_nodes()
         self.log.info("All nodes started, waiting to be connected")
 
-        connect_sample_nodes(self.nodes, self.log, sample=self.options.connect_peers, timeout=120)
+        connect_sample_nodes(self.nodes, self.log, sample=self.options.connect_peers, timeout=120, assert_failure=False)
 
         self.wait_until_nodes_synced()
 
+
+    def start_nodes(self, extra_args=None, *args, **kwargs):
+        """Start multiple bitcoinds"""
+
+        try:
+            for i, node in enumerate(self.nodes):
+                node.start(extra_args, *args, **kwargs)
+
+            for i, node in enumerate(self.nodes):
+                try:
+                    self.log.info("--node {} {}".format(i, node.ip))
+                    node.wait_for_rpc_connection()
+                    node.wait_for_nodeid()
+                    node.wait_for_recovery(["NormalSyncPhase"], 10)
+                except Exception as e:
+                    self.log.error("Failed to start node {} {}".format(i, node.ip))
+                    self.log.error(str(e))
+        except:
+            # If one node failed to start, stop the others
+            self.stop_nodes()
+            raise
+
+                
     def init_txgen(self):
         if self.enable_tx_propagation:
             #setup usable accounts
@@ -256,6 +365,7 @@ class RemoteSimulate(ConfluxTestFramework):
                 return (block, risk)
             except Exception as e:
                 self.log.info("get risk failed {}".format(str(e)))
+                return (None, None)
 
         while not self.stopped:
             futures = []
@@ -275,7 +385,7 @@ class RemoteSimulate(ConfluxTestFramework):
         self.progress = 0
         self.stopped = False
         self.confirm_info = BlockConfirmationInfo()
-        monitor_thread = threading.Thread(target=self.monitor, args=(cur_block_count, 100), daemon=True)
+        monitor_thread = threading.Thread(target=self.monitor, args=(cur_block_count, 1600), daemon=True)
         monitor_thread.start()
         threading.Thread(target=self.gather_confirmation_latency_async, daemon=True).start()
         # When enable_tx_propagation is set, let conflux nodes generate tx automatically.
@@ -411,6 +521,8 @@ class BlockConfirmationInfo:
         self._lock.acquire()
         confirmation_time = self.block_confirmation_time.values()
         self._lock.release()
+        if len(confirmation_time) == 0:
+            return 0
         return sum(confirmation_time) / len(confirmation_time)
 
     def progress(self):

@@ -2,7 +2,7 @@
 
 # allow imports from parent directory
 # source: https://stackoverflow.com/a/11158224
-import os, sys
+import os, sys, re, json
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 sys.path.insert(1, os.path.join(sys.path[0], '../..'))
 
@@ -12,10 +12,31 @@ import subprocess
 from test_framework.test_framework import OptionHelper
 
 def cleanup_remote_logs(ips_file:str):
-    pssh(ips_file, "rm -f *.tgz *.out; rm -rf /tmp/conflux_test_*")
+    ret = pssh(ips_file, "rm -f *.tgz *.out; rm -rf /tmp/conflux_test_*", 3, "cleanup remote logs", "> cleanuplogs 2>&1")
+    if ret > 0:
+        failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
+        with open("cleanuplogs", "r") as f:
+            content = f.read()
+            failure_ips = set(re.findall(failure_pattern, content))
+            print(f"Failure IPs: {failure_ips}")
+            for ip in failure_ips:
+                cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "rm -f *.tgz *.out; rm -rf /tmp/conflux_test_*" > /dev/null 2>&1'
+                if execute(cmd, 5, "cleanup remote logs") > 0:
+                    print(f"Failed to cleanup remote logs {ip}")
 
 def setup_bandwidth_limit(ips_file:str, bandwidth: float, nodes_per_host: int):
-    pssh(ips_file, f"./throttle_bitcoin_bandwidth.sh {bandwidth} {nodes_per_host}")
+    cmd = f"./throttle_bitcoin_bandwidth.sh {bandwidth} {nodes_per_host}"
+    ret = pssh(ips_file, cmd, 3, "setup bandwidth limit", "> bandwidthlimit 2>&1")
+    if ret > 0:
+        failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
+        with open("bandwidthlimit", "r") as f:
+            content = f.read()
+            failure_ips = set(re.findall(failure_pattern, content))
+            print(f"Failure IPs: {failure_ips}")
+            for ip in failure_ips:
+                cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "{cmd}" > /dev/null 2>&1'
+                if execute(cmd, 5, "setup bandwidth limit") > 0:
+                    print(f"Failed to setup bandwidth limit on {ip}")
 
 class RemoteSimulateConfig:
     def __init__(self, block_gen_interval_ms, txs_per_block, tx_size, num_blocks):
@@ -58,6 +79,7 @@ class LatencyExperiment:
         self.exp_latency_options = dict(
             vms = 10,
             batch_config = "500:1:150000:1000,500:1:200000:1000,500:1:250000:1000,500:1:300000:1000,500:1:350000:1000",
+            slave_role = "",
         )
         OptionHelper.add_options(parser, self.exp_latency_options)
 
@@ -90,9 +112,9 @@ class LatencyExperiment:
             print("Experiment started, config = {} ...".format(config))
             
             print("kill remote conflux and cleanup logs ...")
-            kill_remote_conflux(self.options.ips_file)
-            cleanup_remote_logs(self.options.ips_file)
-            setup_bandwidth_limit(self.options.ips_file, self.options.bandwidth, self.options.nodes_per_host)
+            # kill_remote_conflux(self.options.ips_file)
+            # cleanup_remote_logs(self.options.ips_file)
+            # setup_bandwidth_limit(self.options.ips_file, self.options.bandwidth, self.options.nodes_per_host)
 
             print("Run remote simulator ...")
             self.run_remote_simulate(config)
@@ -104,15 +126,8 @@ class LatencyExperiment:
             # next run begins
             # cleanup_remote_logs(self.options.ips_file)
 
-            print("Statistic logs ...")
-            os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
-            os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
-
-            print("Computing latencies ...")
-            self.stat_latency(config)
-
-            print("Collecting metrics ...")
             tag = self.tag(config)
+            print(f"Collecting metrics ..., tag {tag}")
             execute("./copy_file_from_slave.sh metrics.log {} > /dev/null".format(tag), 3, "collect metrics")
             execute("./copy_file_from_slave.sh conflux.log {} > /dev/null".format(tag), 3, "collect rust log")
             if self.options.enable_flamegraph:
@@ -120,6 +135,49 @@ class LatencyExperiment:
                     execute("./copy_file_from_slave.sh conflux.svg {} > /dev/null".format(tag), 10, "collect flamegraph")
                 except:
                     print("Failed to copy flamegraph file conflux.svg, please try again via copy_file_from_slave.sh in manual")
+                    
+            self.terminate_instance()
+
+            self.expand_logs()
+
+            print("Statistic logs ...")
+            os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
+            os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
+
+            print("Computing latencies ...")
+            self.stat_latency(config)
+            
+            fileName = "{}.metrics.log".format(tag)
+            with open(fileName, "r") as f:
+                lines = f.readlines()
+                networkSystemData = None
+                networkConnectionData = None
+                for line in lines[::-1]:
+                    if networkSystemData is None:
+                        idx = line.find('network_system_data, Group, ')
+                        if idx != -1:
+                            s = line[idx + len('network_system_data, Group, '):]
+                            s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
+                            s = s.replace(" ", "")
+                            networkSystemData = s
+
+                    if networkConnectionData is None:
+                        idx = line.find("network_connection_data, Group, ")
+                        if idx != -1:
+                            s = line[idx + len('network_connection_data, Group, '):]
+                            s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
+                            s = s.replace(" ", "")
+                            networkConnectionData = s
+
+                    if networkSystemData and networkConnectionData:
+                        break
+
+                # network_connection_data
+                a = json.loads(networkConnectionData)
+                # network_system_data
+                b = json.loads(networkSystemData)
+                redundancy = 1 - (a["get_block_txn_response.m1"] + a["get_transactions_response.m1"]) / b["write.m1"]
+                os.system("echo TX redundancy: {} >> {}".format(redundancy, self.stat_log_file))
 
             execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
 
@@ -130,9 +188,25 @@ class LatencyExperiment:
             cmd = cmd + " *.conflux.svg"
         os.system(cmd)
 
+    def terminate_instance(self):
+        cmd = [
+                "python3",
+                "./terminate-on-demand.py",
+                "--role", self.options.slave_role,
+            ]
+        log_file = open(self.simulate_log_file, "a")
+        print("[CMD]: {} >> {}".format(cmd, self.simulate_log_file))
+        ret = subprocess.run(cmd, stdout = log_file, stderr=log_file).returncode
+        if ret != 0:
+            print("Failed to terminate instance, return code = {}. Please check [{}] for more details".format(ret, self.simulate_log_file))
+
     def copy_remote_logs(self):
-        execute("./copy_logs.sh > /dev/null", 3, "copy logs")
+        execute("./copy_logs.sh > log_copy.log", 3, "copy logs")
         os.system("echo `ls logs/logs_tmp | wc -l` logs copied.")
+
+    def expand_logs(self):
+        execute("./copy_logs_expand.sh > log_expand.log", 3, "copy logs")
+        os.system("echo `ls logs/logs_tmp | wc -l` logs expand.")
 
     def run_remote_simulate(self, config:RemoteSimulateConfig):
         cmd = [
