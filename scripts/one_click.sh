@@ -27,7 +27,7 @@ run_latency_exp () {
     #2) Launch slave instances
     master_ip=`cat ips`
     slave_image=`cat slave_image`
-    ssh ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;./launch-on-demand.sh $slave_count $key_pair $slave_role $slave_image;"
+    ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;python3 ./launch-on-demand.py --slave $slave_count --key $key_pair --role $slave_role --image $slave_image "
 
     # The images already have the compiled binary setup in `setup_image.sh`,
     # but we can use the following to recompile if we have code updated after image setup.
@@ -39,7 +39,7 @@ run_latency_exp () {
     if [ $enable_flamegraph = true ]; then
         flamegraph_option="--enable-flamegraph"
     fi
-    ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;python3 ./exp_latency.py \
+    ssh -tt -o ServerAliveInterval=60 -o ServerAliveCountMax=120 ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;python3 ./exp_latency.py \
     --vms $slave_count \
     --batch-config \"$exp_config\" \
     --storage-memory-gb 16 \
@@ -49,6 +49,7 @@ run_latency_exp () {
     $flamegraph_option \
     --nodes-per-host $nodes_per_host \
     --max-block-size-in-bytes $max_block_size_in_bytes \
+    --slave-role $slave_role \
     --enable-tx-propagation "
 
     #5) Terminate slave instances
