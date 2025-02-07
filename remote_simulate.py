@@ -276,7 +276,7 @@ class RemoteSimulate(ConfluxTestFramework):
 
             for i, node in enumerate(self.nodes):
                 try:
-                    self.log.info("--node {} {}".format(i, node.ip))
+                    self.log.info("node {} {}".format(i, node.ip))
                     node.wait_for_rpc_connection()
                     node.wait_for_nodeid()
                     node.wait_for_recovery(["NormalSyncPhase"], 10)

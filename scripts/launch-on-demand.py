@@ -314,7 +314,11 @@ if __name__ == "__main__":
                     else:
                         instances_json[node_per_host] = [instance_id]
                 else:
-                    instances_json[total_count] = [instance_id]
+                    if total_count in instances_json:
+                        instances_json[total_count].append(instance_id)
+                    else:
+                        instances_json[total_count] = [instance_id]
+                        
                     total_count = 0
 
             if total_count <= 0:
