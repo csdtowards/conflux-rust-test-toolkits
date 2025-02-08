@@ -1,4 +1,5 @@
-import boto3, argparse
+import boto3, argparse, os
+from datetime import datetime
 
 
 # Initialize a session using Amazon EC2
@@ -12,6 +13,7 @@ def parse_args():
     parser.add_argument(
         "-r", "--role", type=str, default="yuanl_exp_slave", help="role"
     )
+    parser.add_argument("-s", "--sample", action="store_true", help="sample")
     args = parser.parse_args()
     return args
 
@@ -36,11 +38,31 @@ if __name__ == "__main__":
     args = parse_args()
 
     reservations = get_instance_information(args.role)
+
+    sampled = set()
+    if args.sample:
+        current_folder = os.path.dirname(os.path.abspath(__file__))
+        sample_ips = os.path.join(current_folder, "ips_sample")
+        if os.path.exists(sample_ips):
+            with open(sample_ips, "r") as file:
+                lines = file.readlines()
+                for line in lines:
+                    l = line.strip()
+                    if l != "":
+                        sampled.add(l)
+
     if reservations is not None:
         for reservation in reservations:
-            instance_ids = list(
-                map(lambda x: x["InstanceId"], reservation["Instances"])
-            )
+            instance_ids = []
+            if args.sample:
+                for item in reservation["Instances"]:
+                    ip = item["PrivateIpAddress"]
+                    if ip not in sampled:
+                        instance_ids.append(item["InstanceId"])
+            else:
+                instance_ids = list(
+                    map(lambda x: x["InstanceId"], reservation["Instances"])
+                )
             zone = ""
             instance_type = ""
             if len(instance_ids) > 0:
@@ -61,3 +83,5 @@ if __name__ == "__main__":
 
     # Print the response
     # print(response)
+    now = datetime.now()
+    print(f"Current date and time: {now}")

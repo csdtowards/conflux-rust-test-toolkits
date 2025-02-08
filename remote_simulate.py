@@ -80,6 +80,7 @@ class RemoteSimulate(ConfluxTestFramework):
         enable_flamegraph = False,
         enable_tx_propagation = False,
         ips_file = "ips",
+        ips_file_sample = "ips_sample",
         generation_period_ms = 500,
         nodes_per_host = 3,
         num_blocks = 1000,
@@ -129,7 +130,8 @@ class RemoteSimulate(ConfluxTestFramework):
             for line in ip_file.readlines():
                 line = line[:-1]
                 self.ips.append(line)
-
+        self.num_nodes = max(self.new_ips.keys())
+        
         self.new_ips = {}
         if os.path.isfile("instances.json"):
             with open("instances.json", "r") as f:
@@ -272,7 +274,11 @@ class RemoteSimulate(ConfluxTestFramework):
 
         try:
             for i, node in enumerate(self.nodes):
-                node.start(extra_args, *args, **kwargs)
+                try:
+                    node.start(extra_args, *args, **kwargs)
+                except Exception as e:
+                    self.log.info("start node failed")
+                    self.log.error(str(e))
 
             for i, node in enumerate(self.nodes):
                 try:
@@ -285,8 +291,9 @@ class RemoteSimulate(ConfluxTestFramework):
                     self.log.error(str(e))
         except:
             # If one node failed to start, stop the others
-            self.stop_nodes()
-            raise
+            # self.stop_nodes()
+            # raise
+            self.log.info("skip failed node")
 
                 
     def init_txgen(self):

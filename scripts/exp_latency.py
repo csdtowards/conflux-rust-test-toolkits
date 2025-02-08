@@ -120,6 +120,7 @@ class LatencyExperiment:
             self.run_remote_simulate(config)
 
             print("Kill remote conflux and copy logs ...")
+            self.early_terminate()
             kill_remote_conflux(self.options.ips_file)
             self.copy_remote_logs()
             # Do not cleanup logs here because they may be needed for debug later, and they will be deleted when the
@@ -188,12 +189,37 @@ class LatencyExperiment:
             cmd = cmd + " *.conflux.svg"
         os.system(cmd)
 
-    def terminate_instance(self):
-        cmd = [
-                "python3",
-                "./terminate-on-demand.py",
-                "--role", self.options.slave_role,
-            ]
+    def early_terminate(self):
+        ips = set()
+        with open(self.options.ips_file, 'r') as ip_file:
+            for line in ip_file.readlines():
+                line = line[:-1]
+                ips.add(line)
+
+        ips_in_use = set()
+        with open(self.options.ips_file_sample, 'r') as ip_file:
+            for line in ip_file.readlines():
+                line = line[:-1]
+                ips_in_use.add(line)
+
+        if len(ips.difference(ips_in_use)) > 0:
+            self.terminate_instance(no_log=True)
+        
+    def terminate_instance(self, no_log=False):
+        cmd = []
+        if no_log:
+            cmd = [
+                    "python3",
+                    "./terminate-on-demand.py",
+                    "--role", self.options.slave_role,
+                    "--sample",
+                ]
+        else:
+            cmd = [
+                    "python3",
+                    "./terminate-on-demand.py",
+                    "--role", self.options.slave_role,
+                ]
         log_file = open(self.simulate_log_file, "a")
         print("[CMD]: {} >> {}".format(cmd, self.simulate_log_file))
         ret = subprocess.run(cmd, stdout = log_file, stderr=log_file).returncode

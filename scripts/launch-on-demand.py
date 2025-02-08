@@ -77,7 +77,9 @@ def create_ec2_instance(
                 },
             )
 
-            print(f"{instance_type} {zone}: {len(response['Instances'])} instances created")
+            print(
+                f"{instance_type} {zone}: {len(response['Instances'])} instances created"
+            )
             return response["Instances"]
 
         except ClientError as e:
@@ -156,7 +158,6 @@ def wait_for_instances_to_be_sshable(current_folder, all_instances):
     wait_instances = all_instances
     success_instances = []
     removed_ips = set()
-    # removed_ips = set()
     try:
         retry_count = 0
         while True:
@@ -192,7 +193,7 @@ def wait_for_instances_to_be_sshable(current_folder, all_instances):
             else:
                 wait_instances = all_instances
 
-            print(f"Wait instances {len(wait_instances)}")
+            print(f"Waiting instances {len(wait_instances)}")
             if len(wait_instances) == 0 or retry_count >= 3:
                 break
             else:
@@ -231,7 +232,9 @@ def wait_for_instances_to_be_sshable(current_folder, all_instances):
             )
 
         if len(wait_instances) > 0:
-            removed_ips = set([x["PrivateIpAddress"] for x in wait_instances])
+            removed_ips = set(
+                [(x["PrivateIpAddress"], x["InstanceId"]) for x in wait_instances]
+            )
 
     except Exception as e:
         print(f"Error wait for instances to be sshable: {e}")
@@ -318,7 +321,6 @@ if __name__ == "__main__":
                         instances_json[total_count].append(instance_id)
                     else:
                         instances_json[total_count] = [instance_id]
-                        
                     total_count = 0
 
             if total_count <= 0:
@@ -363,14 +365,28 @@ if __name__ == "__main__":
                 if ip not in new_ips:
                     new_ips.add(ip)
                 else:
-                    print(f"duplicate ip: {ip}")
+                    print(f"duplicate ip: {ip}, node {k}")
             else:
-                print(f"remove instance {id}")
+                print(f"remove instance {id}, node {k}")
 
         instances_json[k] = list(new_ips)
 
     removed_ips = wait_for_instances_to_be_sshable(current_folder, all_instances)
     print(f"removed {removed_ips}")
+    removed_instance_ids = list(map(lambda x: x[1], removed_ips))
+    for i in range(0, len(removed_instance_ids), MAX_COUNT_IN_A_CALL):
+        retries = 0
+        while retries < 3:
+            try:
+                response = ec2.terminate_instances(
+                    InstanceIds=removed_instance_ids[i : i + MAX_COUNT_IN_A_CALL]
+                )
+                break
+            except Exception as e:
+                print(f"Error terminate instance: {e}")
+
+            retries += 1
+
     ips = set()
     with open(os.path.join(current_folder, "ips"), "r") as ip_file:
         for line in ip_file.readlines():
@@ -385,9 +401,9 @@ if __name__ == "__main__":
                 if ip not in new_ips:
                     new_ips.add(ip)
                 else:
-                    print(f"duplicate ip {ip}")
+                    print(f"duplicate ip {ip}, node {k}")
             else:
-                print(f"remove ip {ip}")
+                print(f"remove ip {ip}, node {k}")
 
         # instances_json[k] = [x for x in v if x not in removed_ips]
         instances_json[k] = list(new_ips)
