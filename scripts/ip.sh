@@ -30,6 +30,13 @@ echo GET `wc -l ips` IPs
 
 if [ "$skip_ssh" -eq 1 ]; then
     line_count=$(wc -l < ips)
+    if [ "$line_count" -gt 100 ]; then
+        sam=$((line_count / 100))
+        awk -v "r=$sam" 'NR % r == 1' ips > ips_metrics
+    else
+        cp ips ips_metrics
+    fi
+
     if [ "$line_count" -gt 2000 ]; then
         awk 'NR % 3 == 1' ips > ips_sample
     else
