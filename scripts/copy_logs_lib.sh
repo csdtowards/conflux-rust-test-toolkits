@@ -95,25 +95,4 @@ function expand_logs() {
   do
     rm "$file"
   done
-
-  for file in `ls $log_dir/logs_metrics/*$dest_file_name`
-  do
-      tar_dir=${file%$dest_file_name}
-      mkdir "$tar_dir"
-      tar xzf "$file" -C "$tar_dir" &
-      
-      job_count=$((job_count + 1))
-
-      if [ "$job_count" -ge "$max_parallel" ]; then
-        wait -n
-        job_count=$((job_count - 1))
-      fi
-  done
-
-  wait
-
-  for file in `ls $log_dir/logs_metrics/*$dest_file_name`
-  do
-    rm "$file"
-  done
 }

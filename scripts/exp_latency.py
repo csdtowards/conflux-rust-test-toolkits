@@ -88,7 +88,7 @@ class LatencyExperiment:
             return k
 
         remote_simulate_options = dict(filter(
-            lambda kv: k_from_kv(kv) in set(["bandwidth", "profiler", "enable_tx_propagation", "ips_file", "enable_flamegraph"]),
+            lambda kv: k_from_kv(kv) in set(["bandwidth", "profiler", "enable_tx_propagation", "ips_file", "ips_file_sample", "enable_flamegraph"]),
             list(RemoteSimulate.SIMULATE_OPTIONS.items())))
         remote_simulate_options.update(RemoteSimulate.PASS_TO_CONFLUX_OPTIONS)
         # Configs with different default values than RemoteSimulate
@@ -188,7 +188,10 @@ class LatencyExperiment:
         if self.options.enable_flamegraph:
             cmd = cmd + " *.conflux.svg"
         os.system(cmd)
-
+        
+        cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
+        os.system(cmd)
+        
     def early_terminate(self):
         ips = set()
         with open(self.options.ips_file, 'r') as ip_file:

@@ -130,7 +130,6 @@ class RemoteSimulate(ConfluxTestFramework):
             for line in ip_file.readlines():
                 line = line[:-1]
                 self.ips.append(line)
-        self.num_nodes = max(self.new_ips.keys())
         
         self.new_ips = {}
         if os.path.isfile("instances.json"):
@@ -138,7 +137,8 @@ class RemoteSimulate(ConfluxTestFramework):
                 data = json.load(f)
                 for k, v in data.items():
                     self.new_ips[int(k)] = v
-
+        self.num_nodes = max(self.new_ips.keys())
+        
         self.conf_parameters = OptionHelper.conflux_options_to_config(
             vars(self.options), RemoteSimulate.PASS_TO_CONFLUX_OPTIONS)
 

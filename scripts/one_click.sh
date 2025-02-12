@@ -68,6 +68,18 @@ run_latency_exp () {
     cat $log
     mv $archive_file ${archive_file}.`date +%s`
     mv $log ${log}.`date +%s`
+
+    scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_metrics.tgz .
+    rm -dr logs_metrics
+    tar xfvz logs_metrics.tgz
+
+    for file in `ls logs_metrics/*.tgz`
+    do
+        tar_dir=${file%*.tgz}
+        mkdir "$tar_dir"
+        tar xzf "$file" -C "$tar_dir"
+        rm "$file"
+    done
 }
 
 # Parameter for one experiment is <block_gen_interval_ms>:<txs_per_block>:<tx_size>:<num_blocks>
