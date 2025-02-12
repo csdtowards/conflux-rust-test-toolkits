@@ -121,7 +121,7 @@ class LatencyExperiment:
 
             print("Kill remote conflux and copy logs ...")
             self.early_terminate()
-            kill_remote_conflux(self.options.ips_file)
+            kill_remote_conflux(self.options.ips_file_sample)
             self.copy_remote_logs()
             # Do not cleanup logs here because they may be needed for debug later, and they will be deleted when the
             # next run begins
