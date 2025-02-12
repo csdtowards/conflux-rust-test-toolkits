@@ -743,51 +743,51 @@ class LogAggregator:
                         print(f"load progress {i}", flush=True)
 
 
-        res = []
-        i = 0
-        for f in as_completed(futures):
-            r = f.result()
-            res.append(MergeData(r.blocks,r.txs, r.sync_cons_gap_stats, r.by_block_ratio, None))
-            
-            i += 1
-            if i % 100 == 0:
-                print(f"process file progress {i}", flush=True)
-        
-        while len(res) > 1:
-            print(f"res len {len(res)}", flush=True)
-            futures = []
-            i = 0
-            while i < len(res):
-                if i +  1 < len(res):
-                    futures.append(executor.submit(LogAggregator.add_host_merge, res[i], res[i+1]))
-                else:
-                    futures.append(executor.submit(LogAggregator.add_host_merge, res[i], MergeData({}, {}, [], [], [])))
-
-                if i % 100 == 0:
-                    print(f"submit merge thread progress {i}", flush=True)
-                
-                i += 2
-
-            res = []
-            i = 0
-            for f in as_completed(futures):
-                res.append(f.result())
-                if i % 100 == 0:
-                    print(f"merge progress {i}", flush=True)
-                
-                i += 2
-
-        agg.sync_cons_gap_stats = res[0].sync_cons_gap_stats
-        agg.blocks = res[0].blocks
-        agg.txs = res[0].txs
-        agg.host_by_block_ratio = res[0].by_block_ratio
-        agg.tx_wait_to_be_packed_time = res[0].tx_wait_to_be_packed_time
+        # res = []
         # i = 0
         # for f in as_completed(futures):
-        #     agg.add_host(f.result())
+        #     r = f.result()
+        #     res.append(MergeData(r.blocks,r.txs, r.sync_cons_gap_stats, r.by_block_ratio, None))
+            
         #     i += 1
-        #     if i % 200 == 0:
-        #         print(i)
+        #     if i % 100 == 0:
+        #         print(f"process file progress {i}", flush=True)
+        
+        # while len(res) > 1:
+        #     print(f"res len {len(res)}", flush=True)
+        #     futures = []
+        #     i = 0
+        #     while i < len(res):
+        #         if i +  1 < len(res):
+        #             futures.append(executor.submit(LogAggregator.add_host_merge, res[i], res[i+1]))
+        #         else:
+        #             futures.append(executor.submit(LogAggregator.add_host_merge, res[i], MergeData({}, {}, [], [], [])))
+
+        #         if i % 100 == 0:
+        #             print(f"submit merge thread progress {i}", flush=True)
+                
+        #         i += 2
+
+        #     res = []
+        #     i = 0
+        #     for f in as_completed(futures):
+        #         res.append(f.result())
+        #         if i % 100 == 0:
+        #             print(f"merge progress {i}", flush=True)
+                
+        #         i += 2
+
+        # agg.sync_cons_gap_stats = res[0].sync_cons_gap_stats
+        # agg.blocks = res[0].blocks
+        # agg.txs = res[0].txs
+        # agg.host_by_block_ratio = res[0].by_block_ratio
+        # agg.tx_wait_to_be_packed_time = res[0].tx_wait_to_be_packed_time
+        i = 0
+        for f in as_completed(futures):
+            agg.add_host(f.result())
+            i += 1
+            if i % 200 == 0:
+                print(i, flush=True)
 
         agg.validate()
         agg.generate_latency_stat()
