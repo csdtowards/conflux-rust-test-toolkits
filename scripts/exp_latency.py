@@ -177,7 +177,10 @@ class LatencyExperiment:
                 a = json.loads(networkConnectionData)
                 # network_system_data
                 b = json.loads(networkSystemData)
-                redundancy = 1 - (a["get_block_txn_response.m1"] + a["get_transactions_response.m1"]) / b["write.m1"]
+                if "get_block_txn_response.m1" in a and "get_transactions_response.m1" in a and "write.m1" in b:
+                    redundancy = 1 - (a["get_block_txn_response.m1"] + a["get_transactions_response.m1"]) / b["write.m1"]
+                else:
+                    redundancy = 0
                 os.system("echo TX redundancy: {} >> {}".format(redundancy, self.stat_log_file))
 
             execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
