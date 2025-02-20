@@ -12,7 +12,7 @@ import subprocess
 from test_framework.test_framework import OptionHelper
 
 def cleanup_remote_logs(ips_file:str):
-    ret = pssh(ips_file, "rm -f *.tgz *.out; rm -rf /tmp/conflux_test_*", 3, "cleanup remote logs", "> cleanuplogs 2>&1")
+    ret = pssh(ips_file, "rm -f *.tgz *.out; rm -rf /tmp/conflux_test_*", 1, "cleanup remote logs", "> cleanuplogs 2>&1")
     if ret > 0:
         failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
         with open("cleanuplogs", "r") as f:
@@ -26,7 +26,7 @@ def cleanup_remote_logs(ips_file:str):
 
 def setup_bandwidth_limit(ips_file:str, bandwidth: float, nodes_per_host: int):
     cmd = f"./throttle_bitcoin_bandwidth.sh {bandwidth} {nodes_per_host}"
-    ret = pssh(ips_file, cmd, 3, "setup bandwidth limit", "> bandwidthlimit 2>&1")
+    ret = pssh(ips_file, cmd, 1, "setup bandwidth limit", "> bandwidthlimit 2>&1")
     if ret > 0:
         failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
         with open("bandwidthlimit", "r") as f:
@@ -34,8 +34,8 @@ def setup_bandwidth_limit(ips_file:str, bandwidth: float, nodes_per_host: int):
             failure_ips = set(re.findall(failure_pattern, content))
             print(f"Failure IPs: {failure_ips}")
             for ip in failure_ips:
-                cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "{cmd}" > /dev/null 2>&1'
-                if execute(cmd, 5, "setup bandwidth limit") > 0:
+                new_cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "{cmd}" > /dev/null 2>&1'
+                if execute(new_cmd, 5, "setup bandwidth limit") > 0:
                     print(f"Failed to setup bandwidth limit on {ip}")
 
 class RemoteSimulateConfig:

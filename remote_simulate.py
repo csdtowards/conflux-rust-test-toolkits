@@ -52,7 +52,7 @@ def pscp(ips_file:str, local:str, remote:str, retry=3, cmd_description="", outpu
     return execute(cmd, retry, cmd_description)
 
 def kill_remote_conflux(ips_file:str):
-    ret = pssh(ips_file, "killall conflux || echo already killed", 3, "kill remote conflux", "> killConflux 2>&1")
+    ret = pssh(ips_file, "killall conflux || echo already killed", 1, "kill remote conflux", "> killConflux 2>&1")
     if ret > 0:
         failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
         with open("killConflux", "r") as f:
@@ -198,7 +198,7 @@ class RemoteSimulate(ConfluxTestFramework):
             tar_file.add(self.options.tmpdir, arcname=os.path.basename(self.options.tmpdir))
 
         self.log.info("copy conflux configuration files to remote nodes ...")
-        ret = pscp(self.options.ips_file, zipped_conf_file, "~", 3, "copy conflux configuration files to remote nodes", "> copyconfluxcfg 2>&1")
+        ret = pscp(self.options.ips_file, zipped_conf_file, "~", 1, "copy conflux configuration files to remote nodes", "> copyconfluxcfg 2>&1")
         if ret > 0:
             failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
             with open("copyconfluxcfg", "r") as f:
@@ -229,8 +229,8 @@ class RemoteSimulate(ConfluxTestFramework):
             with open("ips_tmp", "w") as file:
                 for item in ips:
                     file.write(f"{item}\n")
-        
-            ret = pssh("ips_tmp", cmd, 3, "setup and run conflux on remote nodes", "> remotestartconflux 2>&1")
+
+            ret = pssh("ips_tmp", cmd, 1, "setup and run conflux on remote nodes", "> remotestartconflux 2>&1")
             if ret > 0:
                 failure_pattern = r"\[FAILURE\] (\d+\.\d+\.\d+\.\d+)"
                 with open("remotestartconflux", "r") as f:
@@ -238,8 +238,8 @@ class RemoteSimulate(ConfluxTestFramework):
                     failure_ips = set(re.findall(failure_pattern, content))
                     print(f"Failure IPs: {failure_ips}")
                     for ip in failure_ips:
-                        cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "{cmd}" > /dev/null 2>&1'
-                        if execute(cmd, 5, "setup and run conflux on remote nodes") > 0:
+                        new_cmd = f'ssh -o "StrictHostKeyChecking no" {ip} "{cmd}" > /dev/null 2>&1'
+                        if execute(new_cmd, 5, "setup and run conflux on remote nodes") > 0:
                             print(f"Failed to setup and run conflux on remote nodes on {ip}")
             
             # add remote nodes and start all

@@ -52,6 +52,7 @@ if __name__ == "__main__":
                         sampled.add(l)
 
     if reservations is not None:
+        total = 0
         for reservation in reservations:
             instance_ids = []
             if args.sample:
@@ -70,6 +71,7 @@ if __name__ == "__main__":
                 instance_type = reservation["Instances"][0]["InstanceType"]
 
             print(f"terminate instance: {instance_type} {zone} {len(instance_ids)}")
+            total += len(instance_ids)
 
             for i in range(0, len(instance_ids), MAX_COUNT_IN_A_CALL):
                 while True:
@@ -80,6 +82,8 @@ if __name__ == "__main__":
                         break
                     except Exception as e:
                         print(f"Error terminate instance: {e}")
+
+        print(f"total instances: {total}")
 
     # Print the response
     # print(response)
