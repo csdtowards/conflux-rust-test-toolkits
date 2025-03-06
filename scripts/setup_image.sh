@@ -7,6 +7,7 @@ if ! [ -x "$(command -v cargo)" ]; then
 fi
 branch=${1:-master}
 repo="${2:-https://github.com/Conflux-Chain/conflux-rust}"
+fstab=${3:-true}
 
 apt_wait () {
   while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
@@ -61,8 +62,10 @@ wget https://s3-ap-southeast-1.amazonaws.com/conflux-test/genesis_secrets.txt
 cp ../../../target/release/conflux throttle_bitcoin_bandwidth.sh remote_start_conflux.sh remote_collect_log.sh remote_collect_metrics.sh stat_latency_map_reduce.py genesis_secrets.txt ~
 
 # Remove process number limit.
-echo "LABEL=cloudimg-rootfs   /        ext4   defaults,noatime,nodiratime,barrier=0       0 0" > fstab
-sudo cp fstab /etc/fstab
+if [ $fstab = true ]; then
+  echo "LABEL=cloudimg-rootfs   /        ext4   defaults,noatime,nodiratime,barrier=0       0 0" > fstab
+  sudo cp fstab /etc/fstab
+fi
 echo "ulimit -n 1048576" >> ~/.profile
 # Cannot assign a value more than half of `/proc/sys/kernel/threads-max`, which is about 120,000.
 echo "ulimit -u 600000" >> ~/.profile
