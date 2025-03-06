@@ -177,7 +177,7 @@ def wait_for_instances_to_be_sshable(current_folder, all_instances):
                 wait_instances = all_instances
 
             print(f"Waiting instances {len(wait_instances)}")
-            if len(wait_instances) == 0 or retry_count >= 3:
+            if len(wait_instances) == 0 or retry_count >= 6:
                 break
             else:
                 write_instance(current_folder, wait_instances)
@@ -359,7 +359,7 @@ if __name__ == "__main__":
         retries = 0
         while retries < 3:
             try:
-                response = client.delete_instance_with_options(
+                response = client.delete_instances_with_options(
                     ecs_20140526_models.DeleteInstancesRequest(
                         region_id=REGION_ID,
                         instance_id=removed_instance_ids[i : i + MAX_COUNT_IN_A_CALL],

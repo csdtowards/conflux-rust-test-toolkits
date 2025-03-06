@@ -28,9 +28,9 @@ run_latency_exp () {
     master_ip=`cat ips`
     slave_image=`cat slave_image`
     date +"%Y-%m-%d %H:%M:%S"
-    ssh -tt ubuntu@${master_ip} "ulimit -a"
+    ssh -o "StrictHostKeyChecking no" -tt ubuntu@${master_ip} "ulimit -a"
     # ssh ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;./launch-on-demand.sh $slave_count $key_pair $slave_role $slave_image;"
-    ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;python3 ./aliyun/launch-on-demand.py --slave $slave_count --key $key_pair --role $slave_role --image $slave_image "
+    ssh -o "StrictHostKeyChecking no" -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;python3 ./aliyun/launch-on-demand.py --slave $slave_count --key $key_pair --role $slave_role --image $slave_image "
     date +"%Y-%m-%d %H:%M:%S"
 
     # The images already have the compiled binary setup in `setup_image.sh`,
@@ -43,7 +43,7 @@ run_latency_exp () {
     if [ $enable_flamegraph = true ]; then
         flamegraph_option="--enable-flamegraph"
     fi
-    ssh -tt -o ServerAliveInterval=60 -o ServerAliveCountMax=120 ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;python3 ./exp_latency.py \
+    ssh -tt -o "StrictHostKeyChecking no" -o ServerAliveInterval=60 -o ServerAliveCountMax=120 ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;python3 ./exp_latency.py \
     --vms $slave_count \
     --batch-config \"$exp_config\" \
     --storage-memory-gb 16 \
@@ -67,13 +67,13 @@ run_latency_exp () {
     # Download results
     archive_file="exp_stat_latency.tgz"
     log="exp_stat_latency.log"
-    scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/${archive_file} .
+    scp -o "StrictHostKeyChecking no" ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/${archive_file} .
     tar xfvz $archive_file
     cat $log
     mv $archive_file ${archive_file}.`date +%s`
     mv $log ${log}.`date +%s`
 
-    scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_metrics.tgz .
+    scp -o "StrictHostKeyChecking no" ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_metrics.tgz .
     rm -fr logs_metrics
     tar xfvz logs_metrics.tgz
     mv logs_metrics.tgz logs_metrics.tgz.`date +%s`
@@ -95,7 +95,7 @@ exp_config="175:1:300000:2000"
 # For experiments with --enable-tx-propagation , <txs_per_block> and <tx_size> will not take effects.
 # Block size is limited by `max_block_size_in_bytes`.
 
-tps=16500
+tps=1000
 max_block_size_in_bytes=450000
 echo "start run $branch"
 run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes

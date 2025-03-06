@@ -44,6 +44,10 @@ if [ "$skip_ssh" -eq 1 ]; then
         cp ips ips_metrics
     fi
 
+    cp ips ../ips
+    cp ips_sample ../ips_sample
+    cp ips_metrics ../ips_metrics
+    cp instances.json ../instances.json
     exit 0
 fi
 

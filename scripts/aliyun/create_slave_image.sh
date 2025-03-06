@@ -63,7 +63,21 @@ master_ip=`cat ips`
 master_id=`cat instances`
 setup_script="setup_image.sh"
 scp -o "StrictHostKeyChecking no" $SCRIPT_DIR/$setup_script ubuntu@$master_ip:~
-ssh -tt ubuntu@$master_ip ./$setup_script $branch $repo false
+# ssh -o "StrictHostKeyChecking no" -tt ubuntu@$master_ip ./$setup_script $branch $repo false
+
+echo "stop instance ..."
+aliyun ecs StopInstances --RegionId 'us-east-1' --ForceStop true --InstanceId.1 $master_id
+
+while true
+do
+	instances=`aliyun ecs DescribeInstances --RegionId us-east-1 --InstanceIds [\"$master_id\"]`
+	status=`echo $instances | jq ".Instances.Instance[].Status" | tr -d '"'`
+	echo "instances are $status ..."
+	if [ "$status" == "Stopped" ]; then
+		break
+	fi
+	sleep 3
+done
 
 # create slave image
 echo "create slave image ..."
@@ -84,3 +98,16 @@ do
 done
 
 echo $image_id > slave_image
+
+echo "start instance"
+aliyun ecs StartInstances  --RegionId 'us-east-1' --InstanceId.1 $master_id
+while true
+do
+	instances=`aliyun ecs DescribeInstances --RegionId us-east-1 --InstanceIds [\"$master_id\"]`
+	status=`echo $instances | jq ".Instances.Instance[].Status" | tr -d '"'`
+	echo "instances are $status ..."
+	if [ "$status" == "Running" ]; then
+		break
+	fi
+	sleep 3
+done
