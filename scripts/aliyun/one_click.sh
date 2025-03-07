@@ -14,6 +14,8 @@ slave_role=${key_pair}_exp_slave
 
 nodes_per_host=1
 
+export ALIYUN_DEFAULT_REGION=us-east-1
+
 run_latency_exp () {
     branch=$1
     exp_config=$2
@@ -103,4 +105,4 @@ run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes
 # Terminate master instance and delete slave images
 # Comment this line if the data on the master instances are needed for further analysis
 # ./terminate-on-demand.sh
-aliyun ecs StopInstances --RegionId 'us-east-1' --InstanceId.1 `cat instances`
+aliyun ecs StopInstances --RegionId $ALIYUN_DEFAULT_REGION --InstanceId.1 `cat instances`

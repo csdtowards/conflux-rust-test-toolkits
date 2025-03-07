@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
+default_region=${ALIYUN_DEFAULT_REGION:-us-east-1}
 SCRIPT_DIR="$( cd "$(dirname "$0")"/.. ; pwd -P )"
 
 # if [[ $# -lt 1 ]]; then
@@ -18,7 +19,7 @@ image="m-0xicmwdj236qs7osfal6"
 
 # create instance
 echo "create an instance to make slave image ..."
-res=`aliyun ecs RunInstances --RegionId us-east-1 --ImageId $image --Amount 1 --InstanceType $type --KeyPairName $key_pair --InternetMaxBandwidthOut 100 --SecurityGroupId sg-0xi2ymnbkmebbeztohrb --VSwitchId vsw-0xiamapbe0bmqfhuwxscz --SystemDisk.Size 100 --SystemDisk.Category cloud_essd --Tag.1.Key role --Tag.1.Value $role --Tag.2.Key Name --Tag.2.Value $type-$image`
+res=`aliyun ecs RunInstances --RegionId $default_region --ImageId $image --Amount 1 --InstanceType $type --KeyPairName $key_pair --InternetMaxBandwidthOut 100 --SecurityGroupId sg-0xi2ymnbkmebbeztohrb --VSwitchId vsw-0xiamapbe0bmqfhuwxscz --SystemDisk.Size 100 --SystemDisk.Category cloud_essd --Tag.1.Key role --Tag.1.Value $role --Tag.2.Key Name --Tag.2.Value $type-$image`
 echo $res | jq ".InstanceIdSets.InstanceIdSet[]" | tr -d '"' > instances
 
 num_created=`cat instances | wc -l`
@@ -31,7 +32,7 @@ echo "1 instances created."
 # wait for all instances in running state
 while true
 do
-	instances=`aliyun ecs DescribeInstances --RegionId us-east-1 --Status Running --Tag.1.Key role --Tag.1.Value $role`
+	instances=`aliyun ecs DescribeInstances --RegionId $default_region --Status Running --Tag.1.Key role --Tag.1.Value $role`
 	num_runnings=`echo $instances | jq ".Instances.Instance[].InstanceId" | wc -l`
 	echo "$num_runnings instances are running ..."
 	if [[ 1 -le $num_runnings  ]]; then
@@ -67,11 +68,11 @@ echo "run $setup_script"
 ssh -o "StrictHostKeyChecking no" -tt ubuntu@$master_ip ./$setup_script $branch $repo false
 
 echo "stop instance ..."
-aliyun ecs StopInstances --RegionId 'us-east-1' --InstanceId.1 $master_id
+aliyun ecs StopInstances --RegionId $default_region --InstanceId.1 $master_id
 
 while true
 do
-	instances=`aliyun ecs DescribeInstances --RegionId us-east-1 --InstanceIds [\"$master_id\"]`
+	instances=`aliyun ecs DescribeInstances --RegionId $default_region --InstanceIds [\"$master_id\"]`
 	status=`echo $instances | jq ".Instances.Instance[].Status" | tr -d '"'`
 	echo "instances are $status ..."
 	if [ "$status" == "Stopped" ]; then
@@ -82,14 +83,14 @@ done
 
 # create slave image
 echo "create slave image ..."
-res=`aliyun ecs CreateImage --RegionId us-east-1 --InstanceId $master_id --ImageName ${key_pair}_slave_image`
+res=`aliyun ecs CreateImage --RegionId $default_region --InstanceId $master_id --ImageName ${key_pair}_slave_image`
 image_id=`echo $res | jq ".ImageId" | tr -d '"'`
 echo "slave image created: $image_id"
 
 # wait until image is available
 while true
 do
-    image_info=`aliyun ecs DescribeImages --RegionId us-east-1 --ImageId $image_id`
+    image_info=`aliyun ecs DescribeImages --RegionId $default_region --ImageId $image_id`
     image_status=`echo $image_info | jq ".Images.Image[].Status" | tr -d '"'`
     echo "image is $image_status"
     if [ "$image_status" != "" ] && [ "$image_status" != "Creating" ] && [ "$image_status" != "Waiting" ]; then
@@ -101,10 +102,10 @@ done
 echo $image_id > slave_image
 
 echo "start instance"
-aliyun ecs StartInstances  --RegionId 'us-east-1' --InstanceId.1 $master_id
+aliyun ecs StartInstances  --RegionId $default_region --InstanceId.1 $master_id
 while true
 do
-	instances=`aliyun ecs DescribeInstances --RegionId us-east-1 --InstanceIds [\"$master_id\"]`
+	instances=`aliyun ecs DescribeInstances --RegionId $default_region --InstanceIds [\"$master_id\"]`
 	status=`echo $instances | jq ".Instances.Instance[].Status" | tr -d '"'`
 	echo "instances are $status ..."
 	if [ "$status" == "Running" ]; then

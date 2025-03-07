@@ -37,7 +37,7 @@ def parse_args():
 
 def get_instance_information(role):
     describe_instances_request = ecs_20140526_models.DescribeInstancesRequest(
-        region_id="us-east-1",
+        region_id=REGION_ID,
         status="Running",
         tag=[ecs_20140526_models.DescribeInstancesRequestTag(key="role", value=role)],
     )

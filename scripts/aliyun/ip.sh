@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # sudo rm -rf /etc/hosts
-export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-west-2}
+default_region=${ALIYUN_DEFAULT_REGION:-us-east-1}
 
 skip_ssh=0
 if [[ $# -eq 0 ]]; then
@@ -21,7 +21,7 @@ touch ips
 if [[ -f instances ]]
 then
 	instance=`jq -R -s -c 'split("\n") | map(select(. != ""))' instances`
-	response=`aliyun ecs DescribeInstances --RegionId us-east-1 --InstanceIds $instance`
+	response=`aliyun ecs DescribeInstances --RegionId $default_region --InstanceIds $instance`
 	echo $response | jq ".Instances.Instance[].$IP_NAME.IpAddress[]" | tr -d '"' > ips_tmp
 	uniq ips_tmp > ips
 	rm ips_tmp
