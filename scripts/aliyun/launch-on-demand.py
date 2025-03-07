@@ -246,7 +246,7 @@ def write_instance(current_folder, all_instances):
 
 
 def write_instance_json(current_folder, all_instances):
-    instance_file = os.path.join(current_folder, "instances.json")
+    instance_file = os.path.join(current_folder, "../instances.json")
     if os.path.isfile(instance_file):
         try:
             shutil.move(

@@ -63,10 +63,11 @@ master_ip=`cat ips`
 master_id=`cat instances`
 setup_script="setup_image.sh"
 scp -o "StrictHostKeyChecking no" $SCRIPT_DIR/$setup_script ubuntu@$master_ip:~
-# ssh -o "StrictHostKeyChecking no" -tt ubuntu@$master_ip ./$setup_script $branch $repo false
+echo "run $setup_script"
+ssh -o "StrictHostKeyChecking no" -tt ubuntu@$master_ip ./$setup_script $branch $repo false
 
 echo "stop instance ..."
-aliyun ecs StopInstances --RegionId 'us-east-1' --ForceStop true --InstanceId.1 $master_id
+aliyun ecs StopInstances --RegionId 'us-east-1' --InstanceId.1 $master_id
 
 while true
 do
@@ -110,4 +111,9 @@ do
 		break
 	fi
 	sleep 3
+done
+
+while ! ssh -o StrictHostKeyChecking=no ubuntu@$master_ip "exit" 2>/dev/null; do
+    echo "SSH is not available yet, retrying in 3 seconds..."
+    sleep 3
 done

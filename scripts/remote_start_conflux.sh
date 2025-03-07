@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ip_addr=`hostname --ip-address`
+ip_addr=`hostname -I | grep -oP '(192[\.\d]+)'`
 root_dir=$1
 p2p_port_start=$2
 num=$3
