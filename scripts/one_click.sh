@@ -80,6 +80,17 @@ run_latency_exp () {
         tar xzf "$file" -C "$tar_dir"
         rm "$file"
     done
+
+    scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_1b1r.tgz .
+    rm -dr logs_1b1r
+    tar xfvz logs_1b1r.tgz
+
+    do
+        tar_dir=${file%*.zst}
+        mkdir "$tar_dir"
+        zstd -d "$file" -C "$tar_dir"
+        rm "$file"
+    done
 }
 
 # Parameter for one experiment is <block_gen_interval_ms>:<txs_per_block>:<tx_size>:<num_blocks>

@@ -120,6 +120,8 @@ class LatencyExperiment:
             self.run_remote_simulate(config)
 
             print("Kill remote conflux and copy logs ...")
+            self.copy_remote_logs_1b1r()
+            
             self.early_terminate()
             kill_remote_conflux(self.options.ips_file_sample)
             self.copy_remote_logs()
@@ -194,6 +196,9 @@ class LatencyExperiment:
         
         cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
         os.system(cmd)
+
+        cmd = "tar cvfz logs_1b1r.tgz -C logs/ logs_1b1r/"
+        os.system(cmd)
         
     def early_terminate(self):
         ips = set()
@@ -236,6 +241,10 @@ class LatencyExperiment:
         execute("./copy_logs.sh > log_copy.log", 3, "copy logs")
         os.system("echo `ls logs/logs_tmp | wc -l` logs copied.")
 
+    def copy_remote_logs_1b1r(self):
+        execute("./copy_logs_1b1r.sh > log_copy.log", 3, "copy logs")
+        os.system("echo `ls logs/logs_1b1r | wc -l` logs copied.")
+        
     def expand_logs(self):
         execute("./copy_logs_expand.sh > log_expand.log", 3, "copy logs")
         os.system("echo `ls logs/logs_tmp | wc -l` logs expand.")
