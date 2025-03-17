@@ -27,7 +27,11 @@ run_latency_exp () {
     #2) Launch slave instances
     master_ip=`cat ips`
     slave_image=`cat slave_image`
+    date +"%Y-%m-%d %H:%M:%S"
+    ssh -tt ubuntu@${master_ip} "ulimit -a"
+    # ssh ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;./launch-on-demand.sh $slave_count $key_pair $slave_role $slave_image;"
     ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;python3 ./launch-on-demand.py --slave $slave_count --key $key_pair --role $slave_role --image $slave_image "
+    date +"%Y-%m-%d %H:%M:%S"
 
     # The images already have the compiled binary setup in `setup_image.sh`,
     # but we can use the following to recompile if we have code updated after image setup.
@@ -43,7 +47,7 @@ run_latency_exp () {
     --vms $slave_count \
     --batch-config \"$exp_config\" \
     --storage-memory-gb 16 \
-    --bandwidth 20 \
+    --bandwidth 100 \
     --tps $tps \
     --send-tx-period-ms 200 \
     $flamegraph_option \
@@ -70,8 +74,9 @@ run_latency_exp () {
     mv $log ${log}.`date +%s`
 
     scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_metrics.tgz .
-    rm -dr logs_metrics
+    rm -fr logs_metrics
     tar xfvz logs_metrics.tgz
+    mv logs_metrics.tgz logs_metrics.tgz.`date +%s`
 
     for file in `ls logs_metrics/*.tgz`
     do
@@ -82,13 +87,13 @@ run_latency_exp () {
     done
 
     scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_1b1r.tgz .
-    rm -dr logs_1b1r
+    rm -fr logs_1b1r
     tar xfvz logs_1b1r.tgz
+    mv logs_1b1r.tgz logs_1b1r.tgz.`date +%s`
 
+    for file in `ls logs_1b1r/*.zst`
     do
-        tar_dir=${file%*.zst}
-        mkdir "$tar_dir"
-        zstd -d "$file" -C "$tar_dir"
+        zstd -d "$file"
         rm "$file"
     done
 }
@@ -96,16 +101,17 @@ run_latency_exp () {
 # Parameter for one experiment is <block_gen_interval_ms>:<txs_per_block>:<tx_size>:<num_blocks>
 # Different experiments in a batch is divided by commas
 # Example: "250:1:150000:1000,250:1:150000:1000,250:1:150000:1000,250:1:150000:1000"
-exp_config="250:1:300000:2000"
+exp_config="175:1:300000:2000"
 
 # For experiments with --enable-tx-propagation , <txs_per_block> and <tx_size> will not take effects.
 # Block size is limited by `max_block_size_in_bytes`.
 
-tps=6000
-max_block_size_in_bytes=300000
+tps=16500
+max_block_size_in_bytes=450000
 echo "start run $branch"
 run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes
 
 # Terminate master instance and delete slave images
 # Comment this line if the data on the master instances are needed for further analysis
-./terminate-on-demand.sh
+# ./terminate-on-demand.sh
+# aws ec2 stop-instances --instance-ids `cat instances`

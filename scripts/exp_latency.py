@@ -120,7 +120,7 @@ class LatencyExperiment:
             self.run_remote_simulate(config)
 
             print("Kill remote conflux and copy logs ...")
-            self.copy_remote_logs_1b1r()
+            # self.copy_remote_logs_1b1r()
             
             self.early_terminate()
             kill_remote_conflux(self.options.ips_file_sample)
@@ -197,8 +197,8 @@ class LatencyExperiment:
         cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
         os.system(cmd)
 
-        cmd = "tar cvfz logs_1b1r.tgz -C logs/ logs_1b1r/"
-        os.system(cmd)
+        # cmd = "tar cvf logs_1b1r.tgz -C logs/ logs_1b1r/"
+        # os.system(cmd)
         
     def early_terminate(self):
         ips = set()
