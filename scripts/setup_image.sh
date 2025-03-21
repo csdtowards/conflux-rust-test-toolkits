@@ -58,6 +58,8 @@ export RUSTFLAGS="-g" && cargo build --release #--features "deadlock_detection"
 ./dev-support/dep_pip3.sh
 cd tests/extra-test-toolkits/scripts
 wget https://s3-ap-southeast-1.amazonaws.com/conflux-test/genesis_secrets.txt
+mv genesis_secrets.txt genesis_secrets1.txt
+head -n 100000 genesis_secrets1.txt > genesis_secrets.txt
 cp ../../../target/release/conflux throttle_bitcoin_bandwidth.sh remote_start_conflux.sh remote_collect_log.sh remote_collect_metrics.sh remote_collect_log_1b1r.sh stat_latency_map_reduce.py genesis_secrets.txt ~
 
 # Remove process number limit.
