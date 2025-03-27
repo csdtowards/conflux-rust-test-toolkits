@@ -2,7 +2,7 @@
 
 . $(dirname "$0")/copy_logs_lib.sh
 
-set -e
+# set -e
 
 log_dir=logs
 
