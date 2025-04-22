@@ -8,7 +8,7 @@ find /tmp/conflux_test_* -name conflux.log | xargs grep -i "txgen" > txgen.log
 find /tmp/conflux_test_* -name conflux.log | xargs grep -i "packing" > tx_pack.log
 find /tmp/conflux_test_* -name conflux.log | xargs grep -i "Partially invalid" > partially_invalid.log
 find /tmp/conflux_test_* -name conflux.log | xargs grep -i "Sampled transaction" > tx_sample.log
-find /tmp/conflux_test_* -name conflux.log | xargs grep -i "new block inserted into graph" > conflux.log.new_block_ready
+find /tmp/conflux_test_* -name conflux.log | xargs grep -i "new block inserted into graph" > conflux.new_block_ready.log
 
 tar cvfz log.tgz *.log
 
