@@ -197,7 +197,7 @@ class LatencyExperiment:
         cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
         os.system(cmd)
 
-        cmd = "find logs_tmp/ -type f -name 'conflux.log.new_block_ready' | tar cvfz new_block_ready.tgz -T -"
+        cmd = "find logs_tmp/ -type f -name 'conflux.new_block_ready.log' | tar cvfz new_block_ready.tgz -T -"
         original_dir = os.getcwd()
         os.chdir('logs')
         os.system(cmd)
