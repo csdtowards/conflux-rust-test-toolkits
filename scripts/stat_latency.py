@@ -152,6 +152,8 @@ class LogAnalyzer:
             else:
                 table.add_stat(name, "%d", self.agg.stat_sync_cons_gap(p))
 
+        table.add_stat("RPC QPS", "%.2f", self.agg.stat_qps(Percentile.Avg))
+        
         tx_sum = sum(block_txs_list)
         print("{} txs generated".format(tx_sum))
         print("Throughput is {}".format(tx_sum / (max_time - min_time)))
