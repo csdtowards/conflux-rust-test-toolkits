@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Find all conflux.conf files matching the pattern
-find . -path "*/conflux*/node*/conflux.conf" | while read -r conf_file; do
+find /tmp/conflux_test_* -name "conflux.conf" | while read -r conf_file; do
     # Extract the port number
     port=$(grep "jsonrpc_local_http_port=" "$conf_file" | cut -d'=' -f2)
 
