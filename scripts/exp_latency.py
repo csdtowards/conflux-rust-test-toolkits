@@ -172,6 +172,14 @@ class LatencyExperiment:
                             s = s.replace(" ", "")
                             networkConnectionData = s
 
+                    if networkConnectionData is None:
+                        idx = line.find("p2p_events, Group, ")
+                        if idx != -1:
+                            s = line[idx + len('p2p_events, Group, '):]
+                            s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
+                            s = s.replace(" ", "")
+                            networkConnectionData = s
+
                     if networkSystemData and networkConnectionData:
                         break
 
@@ -181,8 +189,41 @@ class LatencyExperiment:
                     a = json.loads(networkConnectionData)
                     # network_system_data
                     b = json.loads(networkSystemData)
-                    if "get_block_txn_response.m1" in a and "get_transactions_response.m1" in a and "write.m1" in b:
-                        redundancy = 1 - (a["get_block_txn_response.m1"] + a["get_transactions_response.m1"]) / b["write.m1"]
+                    get_block_txn_response = None
+                    get_transactions_response = None
+                    transactions = None
+                    if get_block_txn_response is None:
+                        if "get_block_txn_response.m1" in a:
+                            get_block_txn_response = a["get_block_txn_response.m1"]
+
+                    if get_block_txn_response is None:
+                        if "get_block_txn_response_send_bytes.m1" in a:
+                            get_block_txn_response = a["get_block_txn_response_send_bytes.m1"]
+                        else:
+                            get_block_txn_response = 0
+                            
+                    if get_transactions_response is None:
+                        if "get_transactions_response.m1" in a:
+                            get_transactions_response = a["get_transactions_response.m1"]
+
+                    if get_transactions_response is None:
+                        if "get_transactions_response_send_bytes.m1" in a:
+                            get_transactions_response = a["get_transactions_response_send_bytes.m1"]
+                        else:
+                            get_transactions_response = 0
+
+                    if transactions is None:
+                        if "transactions.m1" in a:
+                            transactions = a["transactions_send_bytes.m1"]
+
+                    if transactions is None:
+                        if "transactions_send_bytes.m1" in a:
+                            transactions = a["transactions_send_bytes.m1"]
+                        else:
+                            transactions = 0
+                            
+                    if "write.m1" in b:
+                        redundancy = 1 - (get_block_txn_response + get_transactions_response + transactions) / b["write.m1"]
                 os.system("echo TX redundancy: {} >> {}".format(redundancy, self.stat_log_file))
 
             execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
