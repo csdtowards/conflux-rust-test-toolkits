@@ -214,7 +214,7 @@ class LatencyExperiment:
 
                     if transactions is None:
                         if "transactions.m1" in a:
-                            transactions = a["transactions_send_bytes.m1"]
+                            transactions = a["transactions.m1"]
 
                     if transactions is None:
                         if "transactions_send_bytes.m1" in a:
