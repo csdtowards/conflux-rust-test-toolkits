@@ -132,11 +132,13 @@ class RemoteSimulate(ConfluxTestFramework):
                 self.ips.append(line)
         
         self.new_ips = {}
+        totalInstances = 0
         if os.path.isfile("instances.json"):
             with open("instances.json", "r") as f:
                 data = json.load(f)
                 for k, v in data.items():
                     self.new_ips[int(k)] = v
+                    totalInstances += int(k) * len(v)
         self.num_nodes = max(self.new_ips.keys())
         
         self.conf_parameters = OptionHelper.conflux_options_to_config(
@@ -158,7 +160,7 @@ class RemoteSimulate(ConfluxTestFramework):
 
         if self.enable_tx_propagation:
             self.conf_parameters["generate_tx"] = "true"
-            self.conf_parameters["generate_tx_period_us"] = str(1000000 * len(self.ips) // self.options.tps)
+            self.conf_parameters["generate_tx_period_us"] = str(1000000 * totalInstances // self.options.tps)
         else:
             self.conf_parameters["send_tx_period_ms"] = "31536000000" # one year to disable txs propagation
             del self.conf_parameters["genesis_secrets"]
@@ -192,6 +194,11 @@ class RemoteSimulate(ConfluxTestFramework):
         pssh(self.options.ips_file, cmd, 3, "setup and run conflux on remote nodes", "> runconflux 2>&1")
 
     def setup_remote_conflux_with_ips(self):
+        with open(os.path.join(self.options.tmpdir, "node0", "conflux.conf"), "r") as file:
+            content = file.read()
+            self.log.info("conflux configuration:")
+            self.log.info(content)
+            
         # tar the config file for all nodes
         zipped_conf_file = os.path.join(self.options.tmpdir, "conflux_conf.tgz")
         with tarfile.open(zipped_conf_file, "w:gz") as tar_file:
