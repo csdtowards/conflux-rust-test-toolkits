@@ -80,6 +80,7 @@ class LatencyExperiment:
             vms = 10,
             batch_config = "500:1:150000:1000,500:1:200000:1000,500:1:250000:1000,500:1:300000:1000,500:1:350000:1000",
             slave_role = "",
+            old_tx_digest = False,
         )
         OptionHelper.add_options(parser, self.exp_latency_options)
 
@@ -145,7 +146,7 @@ class LatencyExperiment:
 
             print("Statistic logs ...")
             os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
-            os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
+            # os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
 
             print("Computing latencies ...")
             self.stat_latency(config)
@@ -153,35 +154,39 @@ class LatencyExperiment:
             fileName = "{}.metrics.log".format(tag)
             with open(fileName, "r") as f:
                 lines = f.readlines()
+                allNetworkSystemData =  []
+                allNetworkConnectionData = []
+                for line in lines:
+                    # if networkSystemData is None:
+                    idx = line.find('network_system_data, Group, ')
+                    if idx != -1:
+                        s = line[idx + len('network_system_data, Group, '):]
+                        s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
+                        s = s.replace(" ", "")
+                        allNetworkSystemData.append(s)
+                    # if networkConnectionData is None:
+                    idx = line.find("network_connection_data, Group, ")
+                    if idx != -1:
+                        s = line[idx + len('network_connection_data, Group, '):]
+                        s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
+                        s = s.replace(" ", "")
+                        allNetworkConnectionData.append(s)
+                    # if networkConnectionData is None:
+                    idx = line.find("p2p_events, Group, ")
+                    if idx != -1:
+                        s = line[idx + len('p2p_events, Group, '):]
+                        s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
+                        s = s.replace(" ", "")
+                        allNetworkConnectionData.append(s)
+                    # if networkSystemData and networkConnectionData:
+                    #     break
+                
                 networkSystemData = None
                 networkConnectionData = None
-                for line in lines[::-1]:
-                    if networkSystemData is None:
-                        idx = line.find('network_system_data, Group, ')
-                        if idx != -1:
-                            s = line[idx + len('network_system_data, Group, '):]
-                            s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
-                            s = s.replace(" ", "")
-                            networkSystemData = s
-
-                    if networkConnectionData is None:
-                        idx = line.find("network_connection_data, Group, ")
-                        if idx != -1:
-                            s = line[idx + len('network_connection_data, Group, '):]
-                            s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
-                            s = s.replace(" ", "")
-                            networkConnectionData = s
-
-                    if networkConnectionData is None:
-                        idx = line.find("p2p_events, Group, ")
-                        if idx != -1:
-                            s = line[idx + len('p2p_events, Group, '):]
-                            s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
-                            s = s.replace(" ", "")
-                            networkConnectionData = s
-
-                    if networkSystemData and networkConnectionData:
-                        break
+                if len(allNetworkSystemData) > 0:
+                    networkSystemData = allNetworkSystemData[len(allNetworkSystemData)//2]
+                if len(allNetworkConnectionData) > 0:
+                    networkConnectionData = allNetworkConnectionData[len(allNetworkConnectionData)//2]
 
                 redundancy = 0
                 if networkConnectionData is not None and networkSystemData is not None:
@@ -214,7 +219,7 @@ class LatencyExperiment:
 
                     if transactions is None:
                         if "transactions.m1" in a:
-                            transactions = a["transactions.m1"]
+                            transactions = a["transactions_send_bytes.m1"]
 
                     if transactions is None:
                         if "transactions_send_bytes.m1" in a:
@@ -223,7 +228,15 @@ class LatencyExperiment:
                             transactions = 0
                             
                     if "write.m1" in b:
-                        redundancy = 1 - (get_block_txn_response + get_transactions_response + transactions) / b["write.m1"]
+                        denominator = 1
+                        print("old_tx_digest: {}".format(self.options.old_tx_digest))
+                        if self.options.old_tx_digest:
+                            denominator = 8
+                        
+                        redundancy = 1 - ((get_block_txn_response + get_transactions_response + transactions)/denominator)/ b["write.m1"]
+                        # redundancy = 1 - ((get_block_txn_response + get_transactions_response + transactions))/ b["write.m1"]
+                        print("get_block_txn_response + get_transactions_response + transactions: {}".format(get_block_txn_response + get_transactions_response + transactions))
+                        print("b[write.m1]: {}".format(b["write.m1"]))
                 os.system("echo TX redundancy: {} >> {}".format(redundancy, self.stat_log_file))
 
             execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
@@ -235,14 +248,14 @@ class LatencyExperiment:
             cmd = cmd + " *.conflux.svg"
         os.system(cmd)
         
-        cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
-        os.system(cmd)
+        # cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
+        # os.system(cmd)
 
-        cmd = "find logs_tmp/ -type f -name 'conflux.new_block_ready.log' | tar cvfz new_block_ready.tgz -T -"
-        original_dir = os.getcwd()
-        os.chdir('logs')
-        os.system(cmd)
-        os.chdir(original_dir)
+        # cmd = "find logs_tmp/ -type f -name 'conflux.new_block_ready.log' | tar cvfz new_block_ready.tgz -T -"
+        # original_dir = os.getcwd()
+        # os.chdir('logs')
+        # os.system(cmd)
+        # os.chdir(original_dir)
 
         # cmd = "tar cvf logs_1b1r.tgz -C logs/ logs_1b1r/"
         # os.system(cmd)
@@ -268,14 +281,14 @@ class LatencyExperiment:
         if no_log:
             cmd = [
                     "python3",
-                    "./terminate-on-demand.py",
+                    "./terminate-on-demand-region.py",
                     "--role", self.options.slave_role,
                     "--sample",
                 ]
         else:
             cmd = [
                     "python3",
-                    "./terminate-on-demand.py",
+                    "./terminate-on-demand-region.py",
                     "--role", self.options.slave_role,
                 ]
         log_file = open(self.simulate_log_file, "a")

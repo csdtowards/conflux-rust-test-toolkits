@@ -8,24 +8,24 @@ if [[ $# -eq 0 ]]; then
 elif [[ $# -eq 1 ]] && [[ "$1" == "--public" ]]; then 
     IP_NAME="PublicIpAddress"
 elif [[ $# -eq 2 ]] && [[ "$2" == "--ip" ]]; then 
-    IP_NAME="PrivateIpAddress"
+    IP_NAME="PublicIpAddress"
     skip_ssh=1
 else
     echo "Invalid argument. Pass no argument to get private ips or --public for public ips."
 fi
 
-if [[ -f ips ]]; then
-    mv ips ips_old
-fi
-touch ips
-if [[ -f instances ]]
-then
-	instance=`cat instances`
-	response=`aws ec2 describe-instances --instance-ids $instance`
-	echo $response | jq ".Reservations[].Instances[].$IP_NAME" | tr -d '"' > ips_tmp
-	uniq ips_tmp > ips
-	rm ips_tmp
-fi
+# if [[ -f ips ]]; then
+#     mv ips ips_old
+# fi
+# touch ips
+# if [[ -f instances ]]
+# then
+# 	instance=`cat instances`
+# 	response=`aws ec2 describe-instances --instance-ids $instance`
+# 	echo $response | jq ".Reservations[].Instances[].$IP_NAME" | tr -d '"' > ips_tmp
+# 	uniq ips_tmp > ips
+# 	rm ips_tmp
+# fi
 echo GET `wc -l ips` IPs
 
 if [ "$skip_ssh" -eq 1 ]; then
