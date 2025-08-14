@@ -281,14 +281,14 @@ class LatencyExperiment:
         if no_log:
             cmd = [
                     "python3",
-                    "./terminate-on-demand-region.py",
+                    "./instance/terminate-on-demand-region.py",
                     "--role", self.options.slave_role,
                     "--sample",
                 ]
         else:
             cmd = [
                     "python3",
-                    "./terminate-on-demand-region.py",
+                    "./instance/terminate-on-demand-region.py",
                     "--role", self.options.slave_role,
                 ]
         log_file = open(self.simulate_log_file, "a")
