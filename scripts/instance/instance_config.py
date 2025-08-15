@@ -14,6 +14,7 @@ def parse_args():
         default="instance-region.cfg",
         help="configuration file",
     )
+    parser.add_argument("-k", "--key", type=str, default="yuanl", help="key name id")
     parser.add_argument(
         "-r", "--role", type=str, default="yuanl_exp_slave", help="role"
     )
@@ -108,7 +109,7 @@ def parse_cloud_config(d: dict) -> CloudConfig:
         access_key_id=d.get("access_key_id", ""),
         access_key_secret=d.get("access_key_secret", ""),
         regions=[parse_region(r) for r in d.get("regions", [])],
-        instance_types=[parse_instance_type(t) for t in d.get("instance_types", [])],
+        type=[parse_instance_type(t) for t in d.get("type", [])],
     )
 
 

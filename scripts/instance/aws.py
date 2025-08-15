@@ -3,7 +3,7 @@ from botocore.exceptions import ClientError
 import boto3, time
 from typing import List
 
-from .instance_config import (
+from instance_config import (
     MAX_COUNT_IN_A_CALL,
     InstanceType,
     Region,
@@ -241,7 +241,7 @@ def terminate_ec2_instance(role, sampled, account, region):
             instance_ids = []
             if len(sampled) > 0:
                 for item in reservation["Instances"]:
-                    ip = item["PrivateIpAddress"]
+                    ip = item["PublicIpAddress"]
                     if ip not in sampled:
                         instance_ids.append(item["InstanceId"])
             else:

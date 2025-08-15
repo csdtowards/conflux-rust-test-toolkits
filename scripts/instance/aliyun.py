@@ -7,7 +7,7 @@ from alibabacloud_ecs20140526 import models as ecs_20140526_models
 from alibabacloud_tea_util import models as util_models
 from typing import List
 
-from .instance_config import (
+from instance_config import (
     MAX_COUNT_IN_A_CALL,
     InstanceType,
     Region,
@@ -108,12 +108,12 @@ def launch_aliyun_instance(
     id_to_ips = {}
     instances = []
     for instance in all_instances:
-        id_to_ips[instance.instance_id] = instance.public_ip_address.ip_address
+        id_to_ips[instance.instance_id] = instance.public_ip_address.ip_address[0]
 
         instances.append(
             Instance(
                 instanceId=instance.instance_id,
-                publicIpAddress=instance.public_ip_address.ip_address,
+                publicIpAddress=instance.public_ip_address.ip_address[0],
             )
         )
 
@@ -138,7 +138,7 @@ def get_aliyun_instance_information(
     client: Ecs20140526Client, region_id: str, role: str
 ):
     describe_instances_request = ecs_20140526_models.DescribeInstancesRequest(
-        region_id,
+        region_id=region_id,
         status="Running",
         tag=[ecs_20140526_models.DescribeInstancesRequestTag(key="role", value=role)],
     )
@@ -170,14 +170,14 @@ def create_aliyun_instance(
     retry_count = 0
     while retry_count < 10:
         run_instances_request = ecs_20140526_models.RunInstancesRequest(
-            region_id,
+            region_id=region_id,
             image_id=image_id,
             instance_type=instance_type,
             min_amount=1,
             amount=max_count,
             key_pair_name=key_name,
             security_group_id=security_group_id,
-            # v_switch_id=subnet_id,
+            v_switch_id=subnet_id,
             tag=[
                 ecs_20140526_models.RunInstancesRequestTag(key="role", value=role),
                 ecs_20140526_models.RunInstancesRequestTag(
@@ -188,6 +188,7 @@ def create_aliyun_instance(
                 size="250", category="cloud_essd"
             ),
             zone_id=zone,
+            internet_max_bandwidth_out=100,
         )
         runtime = util_models.RuntimeOptions()
         try:
@@ -228,7 +229,7 @@ def terminate_aliyun_instance(role, sampled, account, region):
         instance_ids = []
         if len(sampled) > 0:
             for item in instances:
-                ip = item.vpc_attributes.private_ip_address.ip_address[0]
+                ip = item.public_ip_address.ip_address[0]
                 if ip not in sampled:
                     instance_ids.append(item.instance_id)
         else:

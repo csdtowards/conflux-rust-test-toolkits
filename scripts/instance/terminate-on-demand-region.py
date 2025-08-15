@@ -1,9 +1,9 @@
 from datetime import datetime
 import os
 
-from .instance_config import load_config, parse_args, MAX_COUNT_IN_A_CALL
-from .aws import terminate_ec2_instance
-from .aliyun import terminate_aliyun_instance
+from instance_config import load_config, parse_args, MAX_COUNT_IN_A_CALL
+from aws import terminate_ec2_instance
+from aliyun import terminate_aliyun_instance
 
 
 if __name__ == "__main__":
@@ -11,10 +11,10 @@ if __name__ == "__main__":
 
     current_folder = os.path.dirname(os.path.abspath(__file__))
     cloud_config = load_config(os.path.join(current_folder, args.config))
+    current_folder = os.path.join(current_folder, "..")
 
     sampled = set()
     if args.sample:
-        current_folder = os.path.dirname(os.path.abspath(__file__))
         sample_ips = os.path.join(current_folder, "ips_sample")
         if os.path.exists(sample_ips):
             with open(sample_ips, "r") as file:

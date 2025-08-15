@@ -1,14 +1,14 @@
 import json, os, subprocess, time, shutil, re
 from typing import List
 
-from .instance_config import (
+from instance_config import (
     load_config,
     parse_args,
     Instance,
 )
 
-from .aws import launch_ec2_instance
-from .aliyun import launch_aliyun_instance
+from aws import launch_ec2_instance
+from aliyun import launch_aliyun_instance
 
 
 # Main function
@@ -67,7 +67,7 @@ def wait_for_instances_to_be_sshable(current_folder, all_instances: List[Instanc
 
             with open(ips_log, "w") as f:
                 subprocess.run(
-                    ["./../ip.sh"],
+                    ["./ip.sh"],
                     cwd=current_folder,
                     stdout=f,
                     stderr=subprocess.STDOUT,
@@ -82,7 +82,7 @@ def wait_for_instances_to_be_sshable(current_folder, all_instances: List[Instanc
         write_instance(current_folder, success_instances)
         with open(os.path.join(current_folder, "ips1.log"), "w") as f:
             subprocess.run(
-                ["./../ip.sh", "--public", "--ip"],
+                ["./ip.sh", "--public", "--ip"],
                 cwd=current_folder,
                 stdout=f,
                 stderr=subprocess.STDOUT,
@@ -146,6 +146,7 @@ if __name__ == "__main__":
     args = parse_args()
 
     current_folder = os.path.dirname(os.path.abspath(__file__))
+    current_folder = os.path.join(current_folder, "..")
     cloud_config = load_config(os.path.join(current_folder, args.config))
 
     instances_json = {}

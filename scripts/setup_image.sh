@@ -7,6 +7,7 @@ if ! [ -x "$(command -v cargo)" ]; then
 fi
 branch=${1:-master}
 repo="${2:-https://github.com/Conflux-Chain/conflux-rust}"
+fstab=${3:-true}
 
 apt_wait () {
   while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
@@ -30,6 +31,7 @@ pip3 install prettytable
 pip3 install jsonrpcclient==3.3.6
 pip3 install python-dateutil
 pip3 install boto3
+pip3 install alibabacloud_ecs20140526
 
 sudo apt install -y linux-tools-common
 sudo apt install -y linux-tools-`uname -r`
@@ -73,14 +75,16 @@ head -n 100000 genesis_secrets1.txt > genesis_secrets.txt
 cp ../../../target/release/conflux throttle_bitcoin_bandwidth.sh remote_start_conflux.sh remote_collect_log.sh remote_collect_metrics.sh remote_collect_log_1b1r.sh stat_latency_map_reduce.py genesis_secrets.txt conflux_rpc_stress.sh ~
 
 # Remove process number limit.
-echo "LABEL=cloudimg-rootfs   /        ext4   defaults,noatime,nodiratime,barrier=0       0 0" > fstab
-sudo cp fstab /etc/fstab
+if [ $fstab = true ]; then
+  echo "LABEL=cloudimg-rootfs   /        ext4   defaults,noatime,nodiratime,barrier=0       0 0" > fstab
+  sudo cp fstab /etc/fstab
+fi
 echo "ulimit -n 1048576" >> ~/.profile
 # Cannot assign a value more than half of `/proc/sys/kernel/threads-max`, which is about 120,000.
 echo "ulimit -u 600000" >> ~/.profile
 echo "*            -          nproc     1048576 " | sudo tee -a /etc/security/limits.conf
 echo "*            -          nfile     1048576 " | sudo tee -a /etc/security/limits.conf
 echo "*            -          nofile    1048576 " | sudo tee -a /etc/security/limits.conf
-echo "DefaultTasksMax=65535" | sudo tee -a /etc/systemd/system.conf
+echo "DefaultTasksMax=655350" | sudo tee -a /etc/systemd/system.conf
 sudo mkdir -p /etc/systemd/logind.conf.d
 echo "[Login] \nUserTasksMax=infinity" |sudo tee -a /etc/systemd/logind.conf.d/override.conf
