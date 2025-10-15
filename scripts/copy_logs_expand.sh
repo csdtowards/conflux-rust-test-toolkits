@@ -4,6 +4,6 @@
 
 set -e
 
-log_dir=logs
+log_dir=$1
 
 expand_logs "$log_dir" ".tgz"

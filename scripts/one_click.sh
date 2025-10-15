@@ -20,19 +20,24 @@ run_latency_exp () {
     exp_config=$2
     tps=$3
     max_block_size_in_bytes=$4
+    launch_instance=${5:-false}
+    terminate_instance=${6:-true}
 
     #1) Create master instance and slave image
-    ./create_slave_image.sh $key_pair $branch $repo
-    ./ip.sh --public
+    # ./create_slave_image.sh $key_pair $branch $repo
+    # ./ip.sh --public
 
     #2) Launch slave instances
     master_ip=`cat ips`
     slave_image=`cat slave_image`
     date +"%Y-%m-%d %H:%M:%S"
     ssh -tt ubuntu@${master_ip} "ulimit -a"
-    scp -o "StrictHostKeyChecking no" ./instance-region.cfg ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/instance
-    # ssh ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;./launch-on-demand.sh $slave_count $key_pair $slave_role $slave_image;"
-    ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;python3 ./instance/launch-on-demand-region.py --key $key_pair --role $slave_role --config ./instance/instance-region.cfg "
+
+    if [ $launch_instance = true ]; then
+        scp -o "StrictHostKeyChecking no" ./instance-region.cfg ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/instance
+        # ssh ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;./launch-on-demand.sh $slave_count $key_pair $slave_role $slave_image;"
+        ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm -rf ~/.ssh/known_hosts;python3 ./instance/launch-on-demand-region.py --key $key_pair --role $slave_role --config ./instance/instance-region.cfg "
+    fi
     date +"%Y-%m-%d %H:%M:%S"
 
     # The images already have the compiled binary setup in `setup_image.sh`,
@@ -49,7 +54,12 @@ run_latency_exp () {
     if [ $old_tx = true ]; then
         old_tx_digest="--old-tx-digest"
     fi
-    ssh -tt -o ServerAliveInterval=60 -o ServerAliveCountMax=120 ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;python3 ./exp_latency.py \
+
+    terminate_option=""
+    if [ $terminate_instance = true ]; then
+        terminate_option="--terminate-instance"
+    fi
+    ssh -tt -o ServerAliveInterval=60 -o ServerAliveCountMax=120 ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log exp_stat_latency.log;python3 ./exp_latency.py \
     --vms $slave_count \
     --batch-config \"$exp_config\" \
     --storage-memory-gb 16 \
@@ -61,7 +71,8 @@ run_latency_exp () {
     --max-block-size-in-bytes $max_block_size_in_bytes \
     --slave-role $slave_role \
     --enable-tx-propagation \
-    $old_tx_digest "
+    $old_tx_digest \
+    $terminate_option "
 
     #5) Terminate slave instances
     # rm -rf tmp_data
@@ -72,13 +83,13 @@ run_latency_exp () {
     # cd ..
 
     # Download results
-    archive_file="exp_stat_latency.tgz"
-    log="exp_stat_latency.log"
-    scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/${archive_file} .
-    tar xfvz $archive_file
-    cat $log
-    mv $archive_file ${archive_file}.`date +%s`
-    mv $log ${log}.`date +%s`
+    # archive_file="exp_stat_latency.tgz"
+    # log="exp_stat_latency.log"
+    # scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/${archive_file} .
+    # tar xfvz $archive_file
+    # cat $log
+    # mv $archive_file ${archive_file}.`date +%s`
+    # mv $log ${log}.`date +%s`
 
     # scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/logs_metrics.tgz .
     # rm -fr logs_metrics
@@ -116,7 +127,8 @@ exp_config="175:1:300000:2000"
 tps=16500
 max_block_size_in_bytes=450000
 echo "start run $branch"
-run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes
+run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes true false 
+run_latency_exp $branch $exp_config 300 $max_block_size_in_bytes false true
 
 # Terminate master instance and delete slave images
 # Comment this line if the data on the master instances are needed for further analysis

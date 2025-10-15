@@ -2,7 +2,7 @@
 
 # allow imports from parent directory
 # source: https://stackoverflow.com/a/11158224
-import os, sys, re, json
+import os, sys, re, json, time
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 sys.path.insert(1, os.path.join(sys.path[0], '../..'))
 
@@ -81,6 +81,7 @@ class LatencyExperiment:
             batch_config = "500:1:150000:1000,500:1:200000:1000,500:1:250000:1000,500:1:300000:1000,500:1:350000:1000",
             slave_role = "",
             old_tx_digest = False,
+            terminate_instance = False,
         )
         OptionHelper.add_options(parser, self.exp_latency_options)
 
@@ -122,8 +123,9 @@ class LatencyExperiment:
 
             print("Kill remote conflux and copy logs ...")
             # self.copy_remote_logs_1b1r()
-            
-            self.early_terminate()
+
+            if self.options.terminate_instance:
+                self.early_terminate()
             kill_remote_conflux(self.options.ips_file_sample)
             self.copy_remote_logs()
             # Do not cleanup logs here because they may be needed for debug later, and they will be deleted when the
@@ -132,26 +134,21 @@ class LatencyExperiment:
 
             tag = self.tag(config)
             print(f"Collecting metrics ..., tag {tag}")
-            execute("./copy_file_from_slave.sh metrics.log {} > /dev/null".format(tag), 3, "collect metrics")
-            execute("./copy_file_from_slave.sh conflux.log {} > /dev/null".format(tag), 3, "collect rust log")
+            ts = int(time.time())
+            new_tag = "{}_{}".format(tag, int(ts))
+            execute("./copy_file_from_slave.sh metrics.log {} > /dev/null".format(new_tag), 3, "collect metrics")
+            execute("./copy_file_from_slave.sh conflux.log {} > /dev/null".format(new_tag), 3, "collect rust log")
             if self.options.enable_flamegraph:
                 try:
-                    execute("./copy_file_from_slave.sh conflux.svg {} > /dev/null".format(tag), 10, "collect flamegraph")
+                    execute("./copy_file_from_slave.sh conflux.svg {} > /dev/null".format(new_tag), 10, "collect flamegraph")
                 except:
                     print("Failed to copy flamegraph file conflux.svg, please try again via copy_file_from_slave.sh in manual")
-                    
-            self.terminate_instance()
 
-            self.expand_logs()
+            if self.options.terminate_instance:
+                self.terminate_instance()
 
-            print("Statistic logs ...")
-            os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
-            # os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
-
-            print("Computing latencies ...")
-            self.stat_latency(config)
-            
-            fileName = "{}.metrics.log".format(tag)
+            os.rename("logs", "logs_{}".format(ts))
+            fileName = "{}.metrics.log".format(new_tag)
             with open(fileName, "r") as f:
                 lines = f.readlines()
                 allNetworkSystemData =  []
@@ -237,9 +234,22 @@ class LatencyExperiment:
                         # redundancy = 1 - ((get_block_txn_response + get_transactions_response + transactions))/ b["write.m1"]
                         print("get_block_txn_response + get_transactions_response + transactions: {}".format(get_block_txn_response + get_transactions_response + transactions))
                         print("b[write.m1]: {}".format(b["write.m1"]))
-                os.system("echo TX redundancy: {} >> {}".format(redundancy, self.stat_log_file))
+                os.system("echo TX redundancy: {} >> {}".format(redundancy, "exp.log"))
 
-            execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
+            execute("cp exp.log {}.exp.log".format(new_tag), 3, "copy exp.log")
+            if self.options.terminate_instance or not self.options.terminate_instance:
+                return
+            
+            self.expand_logs()
+
+            print("Statistic logs ...")
+            os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
+            # os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
+
+            print("Computing latencies ...")
+            self.stat_latency(config)
+
+            # execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
 
         print("=========================================================")
         print("archive the experiment results into [{}] ...".format(self.stat_archive_file))
@@ -306,7 +316,7 @@ class LatencyExperiment:
         os.system("echo `ls logs/logs_1b1r | wc -l` logs copied.")
         
     def expand_logs(self):
-        execute("./copy_logs_expand.sh > log_expand.log", 3, "copy logs")
+        execute("./copy_logs_expand.sh logs > log_expand.log", 3, "copy logs")
         os.system("echo `ls logs/logs_tmp | wc -l` logs expand.")
 
     def run_remote_simulate(self, config:RemoteSimulateConfig):
