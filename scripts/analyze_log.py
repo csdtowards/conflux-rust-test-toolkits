@@ -1,4 +1,6 @@
-import os, platform, time, sys
+import os, platform, time, sys, shutil
+from pathlib import Path
+
 
 def execute(cmd, retry, cmd_description):
     while retry > 0:
@@ -23,7 +25,7 @@ def run(log_dir):
     os.system("echo `ls {}/logs_tmp | wc -l` logs expand.".format(log_dir))
 
     print("Computing latencies ...")
-    ts = int(time.time())
+    ts = int(log_dir.split('_')[-1])
     stat_log_file = "exp_stat_latency_{}.log".format(ts)
 
     os.system("echo ============================================================ >> {}".format(stat_log_file))
@@ -32,14 +34,18 @@ def run(log_dir):
     print("begin to statistic relay latency ...")
     ret = os.system("python3 stat_latency.py {0} {2} {0}.csv >> {1}".format(tag, stat_log_file, log_dir))
     assert ret == 0, "Failed to statistic block relay latency, return code = {}".format(ret)
+    shutil.move(stat_log_file, "tmp")
+    shutil.move("{}.csv".format(tag), "tmp")
 
 
 def main():
     logs = sys.argv[1]
-    log_dirs = logs.split(",")
-    for log_dir in log_dirs:
-        run(log_dir)
-        time.sleep(1)
+    for item in os.listdir(logs):
+        full_path = os.path.join(logs, item)
+        if os.path.isdir(full_path):
+            run(os.path.join(logs, item))
+            shutil.rmtree(full_path)
+            time.sleep(1)
 
 if __name__ == "__main__":
     main()

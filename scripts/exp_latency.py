@@ -5,6 +5,7 @@
 import os, sys, re, json, time
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 sys.path.insert(1, os.path.join(sys.path[0], '../..'))
+import shutil
 
 import argparse
 from remote_simulate import RemoteSimulate, pssh, kill_remote_conflux, execute
@@ -132,12 +133,14 @@ class LatencyExperiment:
             # next run begins
             # cleanup_remote_logs(self.options.ips_file)
 
+            os.makedirs("tmp", exist_ok=True)
+
             tag = self.tag(config)
             print(f"Collecting metrics ..., tag {tag}")
             ts = int(time.time())
             new_tag = "{}_{}".format(tag, int(ts))
-            execute("./copy_file_from_slave.sh metrics.log {} > /dev/null".format(new_tag), 3, "collect metrics")
-            execute("./copy_file_from_slave.sh conflux.log {} > /dev/null".format(new_tag), 3, "collect rust log")
+            execute("./copy_file_from_slave.sh metrics.log {} > /dev/null".format(tag), 3, "collect metrics")
+            execute("./copy_file_from_slave.sh conflux.log {} > /dev/null".format(tag), 3, "collect rust log")
             if self.options.enable_flamegraph:
                 try:
                     execute("./copy_file_from_slave.sh conflux.svg {} > /dev/null".format(new_tag), 10, "collect flamegraph")
@@ -147,8 +150,8 @@ class LatencyExperiment:
             if self.options.terminate_instance:
                 self.terminate_instance()
 
-            os.rename("logs", "logs_{}".format(ts))
-            fileName = "{}.metrics.log".format(new_tag)
+            shutil.move("logs", os.path.join("tmp", "logs_{}".format(ts)))
+            fileName = "{}.metrics.log".format(tag)
             with open(fileName, "r") as f:
                 lines = f.readlines()
                 allNetworkSystemData =  []
@@ -236,27 +239,37 @@ class LatencyExperiment:
                         print("b[write.m1]: {}".format(b["write.m1"]))
                 os.system("echo TX redundancy: {} >> {}".format(redundancy, "exp.log"))
 
-            execute("cp exp.log {}.exp.log".format(new_tag), 3, "copy exp.log")
-            if self.options.terminate_instance or not self.options.terminate_instance:
-                return
+            # execute("cp exp.log {}.exp.log".format(new_tag), 3, "copy exp.log")
+            shutil.move("exp.log", os.path.join("tmp", "{}.exp.log".format(new_tag)))
+            shutil.move("{}.conflux.log".format(tag), os.path.join("tmp", "{}.conflux.log".format(new_tag)))
+            shutil.move("{}.metrics.log".format(tag), os.path.join("tmp", "{}.metrics.log".format(new_tag)))
+            # if self.options.terminate_instance or not self.options.terminate_instance:
+            #     return
             
-            self.expand_logs()
+            # self.expand_logs()
 
-            print("Statistic logs ...")
-            os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
-            # os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
+            # print("Statistic logs ...")
+            # os.system("echo throttling logs: `grep -i thrott -r logs | wc -l`")
+            # # os.system("echo error logs: `grep -i thrott -r logs | wc -l`")
 
-            print("Computing latencies ...")
-            self.stat_latency(config)
+            # print("Computing latencies ...")
+            # self.stat_latency(config)
 
             # execute("cp exp.log {}.exp.log".format(tag), 3, "copy exp.log")
 
-        print("=========================================================")
-        print("archive the experiment results into [{}] ...".format(self.stat_archive_file))
-        cmd = "tar cvfz {} {} *.exp.log *nodes.csv *.metrics.log *.conflux.log".format(self.stat_archive_file, self.stat_log_file)
-        if self.options.enable_flamegraph:
-            cmd = cmd + " *.conflux.svg"
-        os.system(cmd)
+
+        # cmd = "tar cvfz {} {} *.exp.log *nodes.csv *.metrics.log *.conflux.log".format(self.stat_archive_file, self.stat_log_file)
+        # if self.options.enable_flamegraph:
+        #     cmd = cmd + " *.conflux.svg"
+        # os.system(cmd)
+        if self.options.terminate_instance:
+            print("begin to statistic relay latency ...")
+            ret = os.system("python3 analyze_log.py {0}".format("tmp"))
+        
+            print("=========================================================")
+            print("archive the experiment results into [{}] ...".format(self.stat_archive_file))
+            cmd = "tar cvfz {} {}".format(self.stat_archive_file, "tmp")
+            os.system(cmd)
         
         # cmd = "tar cvfz logs_metrics.tgz -C logs/ logs_metrics/"
         # os.system(cmd)

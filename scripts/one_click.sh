@@ -29,14 +29,14 @@ run_latency_exp () {
 
     #2) Launch slave instances
     master_ip=`cat ips`
-    slave_image=`cat slave_image`
+    # slave_image=`cat slave_image`
     date +"%Y-%m-%d %H:%M:%S"
     ssh -tt ubuntu@${master_ip} "ulimit -a"
 
     if [ $launch_instance = true ]; then
         scp -o "StrictHostKeyChecking no" ./instance-region.cfg ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/instance
         # ssh ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm exp.log;rm -rf ~/.ssh/known_hosts;./launch-on-demand.sh $slave_count $key_pair $slave_role $slave_image;"
-        ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm -rf ~/.ssh/known_hosts;python3 ./instance/launch-on-demand-region.py --key $key_pair --role $slave_role --config ./instance/instance-region.cfg "
+        ssh -tt ubuntu@${master_ip} "cd ./conflux-rust/tests/extra-test-toolkits/scripts;rm -rf ~/.ssh/known_hosts;rm -rf ./tmp;python3 ./instance/launch-on-demand-region.py --key $key_pair --role $slave_role --config ./instance/instance-region.cfg "
     fi
     date +"%Y-%m-%d %H:%M:%S"
 
@@ -124,11 +124,21 @@ exp_config="175:1:300000:2000"
 # For experiments with --enable-tx-propagation , <txs_per_block> and <tx_size> will not take effects.
 # Block size is limited by `max_block_size_in_bytes`.
 
-tps=16500
+tps=11500
 max_block_size_in_bytes=450000
 echo "start run $branch"
-run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes true false 
+run_latency_exp $branch $exp_config $tps $max_block_size_in_bytes true false
 run_latency_exp $branch $exp_config 300 $max_block_size_in_bytes false true
+
+# Download results
+archive_file="exp_stat_latency.tgz"
+log="exp_stat_latency.log"
+scp ubuntu@${master_ip}:~/conflux-rust/tests/extra-test-toolkits/scripts/${archive_file} .
+tar xfvz $archive_file
+# cat $log
+mv $archive_file ${archive_file}.`date +%s`
+mv tmp tmp.`date +%s`
+# mv $log ${log}.`date +%s`
 
 # Terminate master instance and delete slave images
 # Comment this line if the data on the master instances are needed for further analysis
