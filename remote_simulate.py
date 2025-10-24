@@ -38,17 +38,17 @@ def execute(cmd, retry, cmd_description):
         time.sleep(1)
 
 def pssh(ips_file:str, remote_cmd:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
-    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 200 "{remote_cmd}" {output}'
+    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -h {ips_file} -p 400 "{remote_cmd}" {output}'
     print(cmd)
     return execute(cmd, retry, cmd_description)
 
 def pssh_ips(ips:str, remote_cmd:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
-    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -H "{ips}" -p 200 "{remote_cmd}" {output}'
+    cmd = f'parallel-ssh -O "StrictHostKeyChecking no" -H "{ips}" -p 400 "{remote_cmd}" {output}'
     print(f"{cmd}")
     return execute(cmd, retry, cmd_description)
     
 def pscp(ips_file:str, local:str, remote:str, retry=3, cmd_description="", output="> /dev/null 2>&1"):
-    cmd = f'parallel-scp -O "StrictHostKeyChecking no" -h {ips_file} -p 200 {local} {remote} {output}'
+    cmd = f'parallel-scp -O "StrictHostKeyChecking no" -h {ips_file} -p 400 {local} {remote} {output}'
     return execute(cmd, retry, cmd_description)
 
 def kill_remote_conflux(ips_file:str):
@@ -307,12 +307,25 @@ class RemoteSimulate(ConfluxTestFramework):
         if self.enable_tx_propagation:
             #setup usable accounts
             start_time = time.time()
-            current_index=0
-            for i in range(len(self.nodes)):
-                client = RpcClient(self.nodes[i])
-                client.send_usable_genesis_accounts(current_index)
-                # Each node use independent set of txgen_account_count genesis accounts.
-                current_index+=self.options.txgen_account_count
+
+            def setup(node, start_index):
+                client = RpcClient(node)
+                client.send_usable_genesis_accounts(start_index)
+
+            with ThreadPoolExecutor() as executor:
+                futures = [executor.submit(setup, self.nodes[i], i * self.options.txgen_account_count) for i in range(len(self.nodes))]
+                for f in futures:
+                    if f.exception():
+                        self.log.info("failed to set up account {}".format(f.exception()))
+                    else:
+                        f.result()
+                        
+            # current_index=0
+            # for i in range(len(self.nodes)):
+            #     client = RpcClient(self.nodes[i])
+            #     client.send_usable_genesis_accounts(current_index)
+            #     # Each node use independent set of txgen_account_count genesis accounts.
+            #     current_index+=self.options.txgen_account_count
             self.log.info("Time spend (s) on setting up genesis accounts: {}".format(time.time()-start_time))
 
     def generate_blocks_async(self):
@@ -405,7 +418,7 @@ class RemoteSimulate(ConfluxTestFramework):
         self.progress = 0
         self.stopped = False
         self.confirm_info = BlockConfirmationInfo()
-        monitor_thread = threading.Thread(target=self.monitor, args=(cur_block_count, 1600), daemon=True)
+        monitor_thread = threading.Thread(target=self.monitor, args=(cur_block_count, 100 + int(0.1 * len(self.nodes))), daemon=True)
         monitor_thread.start()
         threading.Thread(target=self.gather_confirmation_latency_async, daemon=True).start()
         # When enable_tx_propagation is set, let conflux nodes generate tx automatically.
@@ -460,8 +473,11 @@ class RemoteSimulate(ConfluxTestFramework):
 
             for i in range(len(self.nodes)):
                 n = self.nodes[i]
-                block_count_futures.append(executor.submit(n.test_getBlockCount))
-                best_block_futures.append(executor.submit(n.best_block_hash))
+                try:
+                    block_count_futures.append(executor.submit(n.test_getBlockCount))
+                    best_block_futures.append(executor.submit(n.best_block_hash))
+                except Exception as e:
+                    self.log.info("failed to get block count or best block: {}".format(str(e)))
 
             for f in block_count_futures:
                 # assert f.exception() is None, "failed to get block count: {}".format(f.exception())

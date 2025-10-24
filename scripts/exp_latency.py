@@ -6,6 +6,7 @@ import os, sys, re, json, time
 sys.path.insert(1, os.path.join(sys.path[0], '..'))
 sys.path.insert(1, os.path.join(sys.path[0], '../..'))
 import shutil
+import threading
 
 import argparse
 from remote_simulate import RemoteSimulate, pssh, kill_remote_conflux, execute
@@ -129,7 +130,9 @@ class LatencyExperiment:
             # self.copy_remote_logs_1b1r()
 
             if self.options.terminate_instance:
-                self.early_terminate()
+                terminate_thread = threading.Thread(target=self.early_terminate)
+                terminate_thread.start()
+                
             kill_remote_conflux(self.options.ips_file_sample)
             self.copy_remote_logs()
             # Do not cleanup logs here because they may be needed for debug later, and they will be deleted when the
@@ -153,43 +156,80 @@ class LatencyExperiment:
             if self.options.terminate_instance:
                 self.terminate_instance()
 
+            terminate_thread.join()
             shutil.move("logs", os.path.join("tmp", "logs_{}".format(ts)))
             fileName = "{}.metrics.log".format(tag)
             with open(fileName, "r") as f:
                 lines = f.readlines()
                 allNetworkSystemData =  []
                 allNetworkConnectionData = []
-                for line in lines:
+                for i in range(len(lines)):
+                    line = lines[i]
                     # if networkSystemData is None:
                     idx = line.find('network_system_data, Group, ')
                     if idx != -1:
                         s = line[idx + len('network_system_data, Group, '):]
                         s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
                         s = s.replace(" ", "")
-                        allNetworkSystemData.append(s)
+                        if "write.m1" in json.loads(s):
+                            allNetworkSystemData.append((i, s))
                     # if networkConnectionData is None:
                     idx = line.find("network_connection_data, Group, ")
                     if idx != -1:
                         s = line[idx + len('network_connection_data, Group, '):]
                         s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
                         s = s.replace(" ", "")
-                        allNetworkConnectionData.append(s)
+                        t = json.loads(s)
+                        if (
+                            "get_block_txn_response.m1" in t
+                            or "get_block_txn_response_send_bytes.m1" in t
+                            or "get_transactions_response.m1" in t
+                            or "get_transactions_response_send_bytes.m1" in t
+                            or "transactions.m1" in t
+                            or "transactions_send_bytes.m1" in t
+                        ):
+                            allNetworkConnectionData.append((i, s))
                     # if networkConnectionData is None:
                     idx = line.find("p2p_events, Group, ")
                     if idx != -1:
                         s = line[idx + len('p2p_events, Group, '):]
                         s = re.sub(r'\b([a-zA-Z_\.\d]+): ([\d\.]+[,\n}])', r'"\1":\2', s)
                         s = s.replace(" ", "")
-                        allNetworkConnectionData.append(s)
+                        t = json.loads(s)
+                        if (
+                            "get_block_txn_response.m1" in t
+                            or "get_block_txn_response_send_bytes.m1" in t
+                            or "get_transactions_response.m1" in t
+                            or "get_transactions_response_send_bytes.m1" in t
+                            or "transactions.m1" in t
+                            or "transactions_send_bytes.m1" in t
+                        ):
+                            allNetworkConnectionData.append((i, s))
                     # if networkSystemData and networkConnectionData:
                     #     break
                 
                 networkSystemData = None
                 networkConnectionData = None
-                if len(allNetworkSystemData) > 0:
+                networkSystemDataLast = None
+                networkConnectionDataLast = None
+                if len(allNetworkSystemData) > 0 and len(allNetworkConnectionData) > 0:
+                    idx1 = len(allNetworkSystemData)//2
+                    idx2 = len(allNetworkConnectionData)//2
+                    line1, _ = allNetworkSystemData[idx1]
+                    line2, _ = allNetworkConnectionData[idx2]
+                    line = max(line1, line2)
+                   
+                    _, networkSystemData = min(allNetworkSystemData, key=lambda x: abs(x[0] - line))
+                    _, networkConnectionData = min(allNetworkConnectionData, key=lambda x: abs(x[0] - line))
+
+                    _, networkSystemDataLast = allNetworkSystemData[-1]
+                    _, networkConnectionDataLast = allNetworkConnectionData[-1]
+                elif len(allNetworkSystemData) > 0:
                     networkSystemData = allNetworkSystemData[len(allNetworkSystemData)//2]
-                if len(allNetworkConnectionData) > 0:
+                    _, networkSystemDataLast = allNetworkSystemData[-1]
+                elif len(allNetworkConnectionData) > 0:
                     networkConnectionData = allNetworkConnectionData[len(allNetworkConnectionData)//2]
+                    _, networkConnectionDataLast = allNetworkConnectionData[-1]
 
                 redundancy = 0
                 if networkConnectionData is not None and networkSystemData is not None:
@@ -205,8 +245,8 @@ class LatencyExperiment:
                             get_block_txn_response = a["get_block_txn_response.m1"]
 
                     if get_block_txn_response is None:
-                        if "get_block_txn_response_send_bytes.m1" in a:
-                            get_block_txn_response = a["get_block_txn_response_send_bytes.m1"]
+                        if "get_block_txn_response_send_bytes.count" in a:
+                            get_block_txn_response = a["get_block_txn_response_send_bytes.count"]
                         else:
                             get_block_txn_response = 0
                             
@@ -215,31 +255,44 @@ class LatencyExperiment:
                             get_transactions_response = a["get_transactions_response.m1"]
 
                     if get_transactions_response is None:
-                        if "get_transactions_response_send_bytes.m1" in a:
-                            get_transactions_response = a["get_transactions_response_send_bytes.m1"]
+                        if "get_transactions_response_send_bytes.count" in a:
+                            get_transactions_response = a["get_transactions_response_send_bytes.count"]
                         else:
                             get_transactions_response = 0
 
                     if transactions is None:
                         if "transactions.m1" in a:
-                            transactions = a["transactions_send_bytes.m1"]
+                            transactions = a["transactions.m1"]
 
                     if transactions is None:
-                        if "transactions_send_bytes.m1" in a:
-                            transactions = a["transactions_send_bytes.m1"]
+                        if "transactions_send_bytes.count" in a:
+                            transactions = a["transactions_send_bytes.count"]
                         else:
                             transactions = 0
-                            
-                    if "write.m1" in b:
+
+                    a1 = json.loads(networkConnectionDataLast)
+                    b1 = json.loads(networkSystemDataLast)
+                    last_line_counter = 0
+
+                    if "get_block_txn_response_send_bytes.count" in a1:
+                        last_line_counter += a1["get_block_txn_response_send_bytes.count"]
+
+                    if "get_transactions_response_send_bytes.count" in a1:
+                        last_line_counter += a1["get_transactions_response_send_bytes.count"]
+                                        
+                    if "write.count" in b and "write.count" in b1:
                         denominator = 1
                         print("old_tx_digest: {}".format(self.options.old_tx_digest))
                         if self.options.old_tx_digest:
                             denominator = 8
-                        
-                        redundancy = 1 - ((get_block_txn_response + get_transactions_response + transactions)/denominator)/ b["write.m1"]
+
+                        mid_counter = get_block_txn_response + get_transactions_response + transactions
+                        print("last line counter: {}, mid counter: {}".format(last_line_counter, mid_counter))
+                        print("last line write counter: {}, mid write count: {}".format(b1["write.count"], b["write.count"]))
+                        redundancy = 1 - ((last_line_counter - mid_counter)/denominator)/ (b1["write.count"] - b["write.count"])
                         # redundancy = 1 - ((get_block_txn_response + get_transactions_response + transactions))/ b["write.m1"]
                         print("get_block_txn_response + get_transactions_response + transactions: {}".format(get_block_txn_response + get_transactions_response + transactions))
-                        print("b[write.m1]: {}".format(b["write.m1"]))
+                        print("b[write.count]: {}".format(b["write.count"]))
                 os.system("echo TX redundancy: {} >> {}".format(redundancy, "exp.log"))
 
             # execute("cp exp.log {}.exp.log".format(new_tag), 3, "copy exp.log")
